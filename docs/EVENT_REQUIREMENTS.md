@@ -31,13 +31,23 @@ From the Shopify talk:
 - Signed in with Shop, the checkout **auto-fills the shopper's address and billing**, and the agent can show order info afterwards. The demo they showed: search → pick → cart → checkout with saved address and Shop Pay → ask about the order.
 - **Anyone must be able to install and use it** (our Shortcuts), not just our phones.
 
+Shopify's challenge gist (gist.github.com/ryan-ormsby/51a14672336a8c2c16ea32e26e708235), rules verbatim in spirit:
+1. **Checkouts are real.** Paying on the merchant's checkout page places a real order with real money.
+2. **Use live data.** Fetch products from Shop MCP when you show them. Don't cache results or re-host merchant images.
+3. **Keep links exactly as returned.** Product URLs and checkout links keep every query parameter.
+4. **Purchases happen on the merchant's page.** One checkout per merchant; give the shopper its `continue_url` to
+   review and pay. **Our project can't complete checkouts itself** (so no `complete_checkout`, even signed in).
+
+Doc index (each is Markdown): shop.dev/docs/{index,quickstart,connect,search,checkout,tools,errors,sign-in,authentication,cli,locations,spend-requests,orders,catalog-api}.md
+
 Verified against shop.dev docs and live calls:
 - Search, carts and checkout work **without sign-in**. `create_checkout` (verified) returns `status`, `totals`, `messages`,
   `links` (including **`refund_policy`**, a real source for the "returnable" clause), `expires_at` (6h) and a
   **`continue_url`** on shop.app where the shopper enters their details and pays.
 - Signed out, a new checkout is `incomplete` (contact + address missing) with no payment instruments: hand the shopper `continue_url`.
-- Signed in (`get_account`): saved addresses, Shop Pay, spend permissions; the agent can fill the address and call
-  `complete_checkout` with the instrument the shopper picks. **Only `status: completed` with an `order` confirms a purchase.**
+- Signed in (`get_account`): saved addresses, Shop Pay, spend permissions. The docs describe `complete_checkout`, but the
+  challenge rules say our project must not complete checkouts. **Only `status: completed` with an `order` confirms a purchase**:
+  poll `get_checkout` after the shopper pays to show the order.
 - Sign-in: CLI device flow (`shop account login --wait 0 --device-name ...`, public client, fine for prototyping), or
   OAuth code + PKCE with scopes `openid personal_agent`, `resource=https://mcp.shop.com`, for a distributed app.
 - The checkout `id` and `continue_url` contain an access key: **never log them**, share `continue_url` only with the shopper.
@@ -52,8 +62,9 @@ Verified against shop.dev docs and live calls:
 4. Approve (or the human approves on the phone) → **Tripwire** calls `create_checkout` with the exact variant and shop
    domain from search, checks the checkout's real totals/warnings/refund policy against the contract again, then
    hands `continue_url` to the shopper's phone. The shopper pays there with Shop Pay.
-5. Signed-in mode (stretch, for the stage demo): address auto-filled from `get_account`, Approve shows address +
-   total + payment method, `complete_checkout` only after Tripwire approves and the shopper confirms.
+5. The shopper always pays on the merchant's page (`continue_url`), signed in to Shop there for saved address and
+   Shop Pay. Tripwire never calls `complete_checkout` (gist rule 4). Stretch: Sign in with Shop in Tripwire so
+   Approve can show the shopper's saved address next to the total before handing over the link.
 
 ## Gemini
 | Model | Job | Notes |
