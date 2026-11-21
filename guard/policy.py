@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from .replay import hash_cart, verify_contract
+from .replay import hash_cart, verify_bound_cart, verify_contract
 
 
 def check_policy(contract: dict, cart: dict, products: list[dict] | None = None) -> dict:
@@ -17,7 +17,11 @@ def check_policy(contract: dict, cart: dict, products: list[dict] | None = None)
 
     failures.extend(_check_total(contract, cart))
     failures.extend(_check_currency(contract, cart))
+    failures.extend(_check_quantity(contract, cart))
     failures.extend(_check_cart_hash(cart))
+    ok_bound, bound_reason = verify_bound_cart(contract, cart)
+    if not ok_bound:
+        failures.append(bound_reason)
     failures.extend(_check_live_prices(cart, products or []))
 
     return {"pass": not failures, "failures": failures}
@@ -53,6 +57,24 @@ def _check_currency(contract: dict, cart: dict) -> list[str]:
         return ["currency: cart is missing currency"]
     if expected != got:
         return [f"currency: cart {got} does not match contract {expected}"]
+    return []
+
+
+def _check_quantity(contract: dict, cart: dict) -> list[str]:
+    expected = _as_int(contract.get("quantity"), 1)
+    if expected is None:
+        expected = 1
+    lines = cart.get("lines") if isinstance(cart.get("lines"), list) else []
+    total_qty = 0
+    for line in lines:
+        if not isinstance(line, dict):
+            continue
+        qty = _as_int(line.get("quantity"))
+        if qty is None or qty < 1:
+            return [f"quantity: a cart line has invalid quantity {None if not isinstance(line, dict) else line.get('quantity')}"]
+        total_qty += qty
+    if total_qty != expected:
+        return [f"quantity: cart has {total_qty} but contract quantity is {expected}"]
     return []
 
 

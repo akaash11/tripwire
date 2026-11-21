@@ -8,6 +8,7 @@ from . import canary, replay
 from .canary import canary_token, scan, scan_tool_args
 from .photo import photo_match
 from .check import check, enforced, reduced
+from .checkout import final_check
 
 __all__ = [
     "check",
@@ -17,4 +18,5 @@ __all__ = [
     "scan",
     "scan_tool_args",
     "photo_match",
+    "final_check",
 ]

@@ -22,6 +22,8 @@ from guard import canary, canary_token, check, reduced, replay, scan_tool_args  
 from guard.decisions import clause_questions  # noqa: E402
 from guard.gate import route  # noqa: E402
 from guard.refund import refund_policy_signal  # noqa: E402
+from guard.checkout import final_check  # noqa: E402
+from agent.tools import ShopSession  # noqa: E402
 from guard.listing import input_blocks, listing_text  # noqa: E402
 from guard.replay import hash_cart  # noqa: E402
 
@@ -485,6 +487,100 @@ class GuardTests(unittest.TestCase):
         cart = {"links": [{"type": "refund_policy", "url": "https://shop.app/refund-policy"}]}
         found = refund_policy_signal(self.sample_products(), cart=cart)
         self.assertEqual(found["source"], "cart.links")
+
+    def test_quantity_inflation_is_blocked(self) -> None:
+        cart = self.sample_cart()
+        cart["lines"][0]["quantity"] = 2
+        cart["total_cents"] = 2598
+        cart["cart_hash"] = hash_cart(cart)
+        contract = self.make_contract(quantity=1)
+        with patch("guard.check.gate.evaluate", side_effect=self.approve_gate):
+            result = check(contract, cart, self.sample_products())
+        self.assertEqual(result["verdict"], "block")
+        self.assertTrue(any("quantity" in r for r in result["xray"]["reasons"]))
+
+    def test_quantity_defaults_to_one(self) -> None:
+        cart = self.sample_cart()
+        contract = self.make_contract()
+        contract.pop("quantity", None)
+        # re-sign after removing quantity
+        from common.signing import sign
+        body = {k: v for k, v in contract.items() if k != "signature"}
+        contract = sign(body)
+        with patch("guard.check.gate.evaluate", side_effect=self.approve_gate):
+            result = check(contract, cart, self.sample_products())
+        self.assertEqual(result["verdict"], "approve")
+
+    def test_bound_cart_hash_rejects_later_tamper(self) -> None:
+        cart = self.sample_cart()
+        contract = self.make_contract()
+        replay.bind_cart_hash(contract, cart)
+        cart["payee"] = {"shop_domain": "ugreen-store.shop", "name": "UGREEN Official"}
+        cart["cart_hash"] = hash_cart(cart)
+        with patch("guard.check.gate.evaluate", side_effect=self.approve_gate):
+            result = check(contract, cart, self.sample_products())
+        self.assertEqual(result["verdict"], "block")
+        self.assertTrue(any("finalized" in r or "payee" in r or "cart_hash" in r for r in result["xray"]["reasons"]))
+
+    def test_final_check_blocks_over_cap_and_payee_change(self) -> None:
+        contract = self.make_contract()
+        cart = self.sample_cart()
+        checkout = {
+            "currency": "USD",
+            "shop_name": "UGREEN",
+            "totals": [{"type": "total", "amount": 99999}],
+            "messages": [],
+            "links": [{"type": "refund_policy", "url": "https://ugreen.myshopify.com/policies/refund-policy"}],
+        }
+        result = final_check(contract, cart, checkout)
+        self.assertFalse(result["pass"])
+        self.assertTrue(any("total" in r for r in result["failures"]))
+
+        checkout["totals"] = [{"type": "total", "amount": 1299}]
+        checkout["shop_name"] = "Lookalike Shop"
+        result = final_check(contract, cart, checkout)
+        self.assertFalse(result["pass"])
+        self.assertTrue(any("payee" in r or "shop" in r for r in result["failures"]))
+
+    def test_final_check_requires_refund_link_when_returns_required(self) -> None:
+        contract = self.make_contract(returns="required")
+        cart = self.sample_cart()
+        checkout = {
+            "currency": "USD",
+            "shop_name": "UGREEN",
+            "totals": [{"type": "total", "amount": 1299}],
+            "messages": [],
+            "links": [],
+        }
+        result = final_check(contract, cart, checkout)
+        self.assertFalse(result["pass"])
+        self.assertTrue(any("refund_policy" in r for r in result["failures"]))
+        checkout["links"] = [{"type": "refund_policy", "url": "https://ugreen.myshopify.com/policies/refund-policy"}]
+        result = final_check(contract, cart, checkout)
+        self.assertTrue(result["pass"], result)
+
+    def test_final_check_blocks_final_sale_warning_when_returns_required(self) -> None:
+        contract = self.make_contract(returns="required")
+        cart = self.sample_cart()
+        checkout = {
+            "currency": "USD",
+            "shop_name": "UGREEN",
+            "totals": [{"type": "total", "amount": 1299}],
+            "messages": [{"type": "warning", "code": "final_sale", "content": "Final sale, no returns"}],
+            "links": [{"type": "refund_policy", "url": "https://ugreen.myshopify.com/policies/refund-policy"}],
+        }
+        result = final_check(contract, cart, checkout)
+        self.assertFalse(result["pass"])
+        self.assertTrue(any("final sale" in r for r in result["failures"]))
+        self.assertTrue(result["warnings"])
+
+    def test_dispatch_blocks_canary_in_tool_args(self) -> None:
+        token = canary.generate()
+        session = ShopSession({"contract_id": "ic_01TEST", "quantity": 1})
+        out = session.dispatch("search_products", {"query": f"100W cable {token}"})
+        self.assertIn("blocked", out.get("error", ""))
+        out = session.dispatch("request_checkout", {"cart_id": f"cart_{token}"})
+        self.assertEqual(out.get("verdict"), "block")
 
 
 if __name__ == "__main__":

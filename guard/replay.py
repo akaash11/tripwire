@@ -17,6 +17,7 @@ from common.signing import verify
 _memory_nonces: set[str] = set()
 _nonce_path: Path | None = None
 _loaded_path: Path | None = None
+_bound: dict[str, dict] = {}
 
 
 def nonce_path() -> Path:
@@ -32,9 +33,10 @@ def configure(*, nonce_path: Path | str | None = None, reset_nonce_store: bool =
 
 
 def reset() -> None:
-    global _memory_nonces, _loaded_path
+    global _memory_nonces, _loaded_path, _bound
     _memory_nonces = set()
     _loaded_path = None
+    _bound = {}
 
 
 def hash_cart(cart: dict) -> str:
@@ -128,3 +130,47 @@ def verify_contract(contract: dict, *, now: datetime | None = None) -> tuple[boo
     if nonce in _load_nonces():
         return False, "contract: nonce already used (replay)"
     return True, ""
+
+
+def _bind_key(contract: dict, cart: dict) -> str:
+    return f"{contract.get('contract_id')}:{cart.get('cart_id')}"
+
+
+def bind_cart_hash(contract: dict, cart: dict) -> str:
+    """Record the final cart fingerprint (and payee) for this contract+cart. Call when the cart is final."""
+    if not isinstance(contract, dict) or not isinstance(cart, dict):
+        raise ValueError("bind_cart_hash requires a contract and a cart")
+    key = _bind_key(contract, cart)
+    digest = hash_cart(cart)
+    payee = cart.get("payee")
+    _bound[key] = {
+        "cart_hash": digest,
+        "payee": dict(payee) if isinstance(payee, dict) else payee,
+    }
+    return digest
+
+
+def bound_record(contract: dict, cart: dict) -> dict | None:
+    return _bound.get(_bind_key(contract, cart))
+
+
+def verify_bound_cart(contract: dict, cart: dict) -> tuple[bool, str]:
+    """If a cart was bound, require the current cart (and payee) to match. Unbound carts are skipped."""
+    rec = bound_record(contract, cart)
+    if rec is None:
+        return True, ""
+    try:
+        actual = hash_cart(cart)
+    except KeyError as exc:
+        return False, f"cart_hash: cart is missing {exc}"
+    if actual != rec.get("cart_hash"):
+        return False, "cart_hash: cart changed after it was finalized"
+    expected_payee = rec.get("payee") or {}
+    got = cart.get("payee") or {}
+    if isinstance(expected_payee, dict) and isinstance(got, dict):
+        exp_domain = expected_payee.get("shop_domain")
+        got_domain = got.get("shop_domain")
+        if exp_domain and got_domain and exp_domain != got_domain:
+            return False, f"payee: shop_domain changed from {exp_domain} to {got_domain} after the cart was finalized"
+    return True, ""
+
