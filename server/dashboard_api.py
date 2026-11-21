@@ -170,7 +170,7 @@ def _safe_shopper_events(req_id: str) -> list[dict]:
         "pipeline_started": (),
         "contract_ready": ("summary", "compiled_by"),
         "contract_failed": ("error",),
-        "search": ("query", "results", "top_titles"),
+        "search": ("query", "results", "top_titles", "delivers"),
         "cart": ("cart_id", "summary", "title", "price_cents", "currency", "seller", "quantity", "image_url", "product_url"),
         "delivery_check": ("cart_id", "ok", "reason", "summary"),
         "budget_raised": ("cart_id", "new_budget_cents", "old_budget_cents", "verdict"),

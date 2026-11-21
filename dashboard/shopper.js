@@ -26,7 +26,7 @@
     newReqLinkEl.setAttribute("href", ROOT_PREFIX + "/buy");
   }
 
-  const STEPS = ["Understanding", "Shopping", "Delivery", "Your OK", "Shop"];
+  const STEPS = ["Understand", "Shopping", "Delivery", "Your OK", "Shop"];
   const ACTIVE_STATUSES = new Set(["received", "compiling_contract", "contract_ready", "shopping"]);
   const TERMINAL_STOP_STATUSES = new Set(["block", "no_checkout", "agent_failed", "contract_failed", "expired"]);
 
@@ -635,11 +635,13 @@
     for (let i = 0; i < events.length; i++) {
       const e = events[i];
       if (e.kind === "search") {
+        const countText = " (" + (e.results ?? 0) + " live results" +
+          (typeof e.delivers === "number" ? (" · " + e.delivers + " deliver") : "") + ")";
         const sNodes = [
           el("div", null,
             el("span", { className: "muted" }, "Searched Shopify for "),
             el("strong", null, "“" + (e.query || "") + "”"),
-            el("span", { className: "muted num" }, " (" + (e.results ?? 0) + " live results)")),
+            el("span", { className: "muted num" }, countText)),
         ];
         if (e.top_titles && e.top_titles.length) {
           const list = el("ul", { className: "clause-list", style: "margin-top:6px;" });

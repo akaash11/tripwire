@@ -72,6 +72,10 @@
   box-sizing: border-box;
 }
 
+[hidden] {
+  display: none !important;
+}
+
 html, body {
   margin: 0;
   padding: 0;
@@ -414,7 +418,7 @@ td.num, th.num {
 .stepper {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 4px;
+  gap: 3px;
 }
 .step-item {
   display: flex;
@@ -422,10 +426,18 @@ td.num, th.num {
   align-items: center;
   gap: 4px;
   text-align: center;
-  font-size: 0.72rem;
+  font-size: 0.68rem;
   font-weight: 650;
   color: var(--muted);
   line-height: 1.15;
+  min-width: 0;
+  overflow: hidden;
+}
+.step-item span {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .step-bar {
   width: 100%;
@@ -758,10 +770,14 @@ td.num, th.num {
   font-weight: 700;
 }
 .sticky-reason {
-  margin-top: 6px;
-  font-size: 0.84rem;
+  margin-top: 5px;
+  font-size: 0.82rem;
   color: var(--muted);
-  line-height: 1.35;
+  line-height: 1.32;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 /* Shopper Footer */

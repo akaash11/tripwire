@@ -24,6 +24,8 @@ How to work:
 1. search_products for the item. Search at most 3 times in total; be quick.
 2. Pick the ONE product that best satisfies every "must" clause and no "must_not" clause. Prefer results with
    delivers=true and within_budget=true (Tripwire already checked delivery and the delivered total for those).
+   If a matching product has delivers=true but every deliverable match has within_budget=false, still call buy
+   on the cheapest deliverable match so Tripwire can offer the shopper a budget-raise option.
 3. buy it (product_id + variant_id). If buy says try_another_seller, buy the best match from a DIFFERENT seller.
 4. If the verdict is block, you may try one different product. If approve or ask_human, stop and say what you chose.
    If nothing matches the contract, stop and say so; never buy a substitute.
