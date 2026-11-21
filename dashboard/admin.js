@@ -324,12 +324,14 @@
       approve: "pill-ok",
       completed: "pill-ok",
       ask_human: "pill-warn",
+      over_budget: "pill-warn",
       block: "pill-bad",
       contract_failed: "pill-bad",
       agent_failed: "pill-bad",
       shopping: "pill-info",
       compiling_contract: "pill-info",
       contract_ready: "pill-info",
+      expired: "pill-neutral",
     };
     return el("span", { className: "pill " + (map[status] || "pill-neutral") }, status || "unknown");
   }
@@ -338,6 +340,9 @@
     const headerLeft = el("div", { style: "display:flex;flex-wrap:wrap;align-items:center;gap:8px;" },
       el("span", { className: "mono", style: "font-weight:750;" }, req.id),
       statusPill(req.status),
+      req.client
+        ? el("span", { className: "pill pill-neutral mono" }, req.client)
+        : null,
       req.contract && req.contract.compiled_by
         ? el("span", { className: "pill pill-neutral mono" }, req.contract.compiled_by)
         : null,
@@ -378,6 +383,12 @@
       },
       el("div", null, el("strong", null, "Awaiting decision: "), pc.summary || pc.cart_id),
       el("div", { style: "display:flex;gap:8px;" }, bNo, bOk));
+    } else if (req.offer) {
+      inlinePending = el("div", { className: "callout callout-warn small", style: "margin-top:12px;" },
+        el("strong", null, "Over budget (waiting on shopper): "),
+        "Cheapest delivering: " + (req.offer.summary || req.offer.cart_id) +
+        " · budget " + money(req.offer.budget_cents) +
+        (req.offer.budget_stated === false ? " (guessed)" : ""));
     }
 
     return el("article", { className: "card" },
@@ -408,6 +419,8 @@
 
     nodes.push(el("div", { style: "display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;" },
       el("span", { className: "pill pill-neutral num" }, "Cap: " + money(c.max_total_cents, c.currency)),
+      c.budget_stated === false ? el("span", { className: "pill pill-warn" }, "Guessed budget") : null,
+      c.amended_by === "shopper" ? el("span", { className: "pill pill-ok" }, "Raised by shopper") : null,
       c.returns ? el("span", { className: "pill pill-info" }, "Returns: " + c.returns) : null,
       c.signed ? el("span", { className: "pill pill-ok" }, "Ed25519 signed") : null));
 
@@ -572,8 +585,8 @@
 
   function renderToolCalls(req) {
     const events = (req.events || []).filter((e) =>
-      ["tool_call", "search", "cart", "verdict", "checkout_created", "checkout_refreshed",
-       "human_decision", "agent_turn", "agent_done", "agent_failed", "contract_failed"].includes(e.kind)
+      ["tool_call", "search", "cart", "delivery_check", "budget_raised", "verdict", "checkout_created",
+       "checkout_refreshed", "human_decision", "agent_turn", "agent_done", "agent_failed", "contract_failed"].includes(e.kind)
     );
     const box = el("div", { style: "margin-top:14px;border-top:1px solid var(--border);padding-top:12px;" },
       el("div", { className: "xray-label" }, "Agent Tool Calls & Pipeline Events (" + events.length + ")"));
@@ -586,12 +599,33 @@
     const log = el("div", { className: "tool-log" });
     for (const ev of events) {
       let summary = "";
+      let entryCls = "";
+      let badge = null;
+
       if (ev.kind === "tool_call") {
         summary = (ev.name || "tool") + "(" + JSON.stringify(ev.args || {}) + ")";
       } else if (ev.kind === "search") {
         summary = "query=“" + (ev.query || "") + "” → " + (ev.results ?? 0) + " live results";
       } else if (ev.kind === "cart") {
         summary = ev.summary || ev.title || ev.cart_id || "";
+      } else if (ev.kind === "delivery_check") {
+        if (ev.ok) {
+          entryCls = " entry-ok";
+          badge = el("span", { className: "pill pill-ok" }, "OK");
+          summary = ev.summary || "Deliverable within budget";
+        } else {
+          const reason = String(ev.reason || "");
+          const isBudget = reason.toLowerCase().includes("budget") || reason.toLowerCase().includes("over the");
+          entryCls = isBudget ? " entry-warn" : " entry-bad";
+          badge = el("span", { className: "pill " + (isBudget ? "pill-warn" : "pill-bad") },
+            isBudget ? "OVER BUDGET" : "NO DELIVERY");
+          summary = reason;
+        }
+      } else if (ev.kind === "budget_raised") {
+        entryCls = " entry-info";
+        badge = el("span", { className: "pill pill-info" }, "SHOPPER");
+        summary = money(ev.old_budget_cents) + " → " + money(ev.new_budget_cents) +
+          (ev.verdict ? (" · verdict=" + ev.verdict) : "");
       } else if (ev.kind === "verdict") {
         summary = (ev.verdict || "") + (ev.enforced === false ? " [OFF]" : "") + (ev.reason ? " — " + ev.reason : "");
       } else if (ev.kind === "agent_turn") {
@@ -606,9 +640,11 @@
         summary = ev.error;
       }
 
-      log.appendChild(el("div", { className: "tool-entry" },
+      log.appendChild(el("div", { className: "tool-entry" + entryCls },
         el("div", { className: "tool-entry-head" },
-          el("span", { className: "mono", style: "font-weight:700;" }, ev.kind),
+          el("div", { style: "display:flex;align-items:center;gap:6px;" },
+            el("span", { className: "mono", style: "font-weight:700;" }, ev.kind),
+            badge),
           el("span", { className: "small muted num" }, fmtTime(ev.ts))),
         summary ? el("div", { className: "small mono", style: "word-break:break-word;" }, summary) : null));
     }
