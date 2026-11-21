@@ -6,7 +6,8 @@ Update this file when you finish something. Real results only; mark anything not
 ## Working now (verified end to end)
 | Piece | File | Verified |
 |---|---|---|
-| Phone → server | `server/app.py`, `phone/make_shortcuts.py` | `/request` multipart voice + photo, replies at once, works in background |
+| Phone → server | `server/app.py`, `phone/make_shortcuts.py` | `/request` multipart voice + photo, replies at once, works in background. **Fixed:** the Buy shortcut sent the form with NO files (file fields need a `WFTextTokenAttachment` inside `WFTokenAttachmentParameterState`); `/request` now answers 400 + a spoken message if nothing arrives. Every request gets an unguessable `token` in the reply |
+| Phone web page (no install) | `server/web.py` | `GET /buy`: photo + hold-to-talk + text → live status (`GET /w/{token}`, no pay link in JSON) → Approve/Block (`POST /w/{token}/decide`, scoped to that token's cart) → opens the real Shop checkout. Verified over the tailnet: Neon contract, UGREEN 100W $12.99, real checkout $13.77 on shop.app; a wrong token is refused |
 | Contract | `agent/contract.py` | Neon (`thinking_level: low`) builds a signed contract from voice + photo in ~11s; Flash-Lite fallback |
 | Signing | `common/signing.py` | Ed25519; tampering any field fails `verify()`; public key at `GET /pubkey` |
 | Shop MCP | `agent/shop_mcp.py` | Live `search_catalog`; real `create_checkout` (no order placed) returns totals, `messages`, `links` incl. refund policy, `continue_url` on shop.app |
@@ -22,7 +23,7 @@ CLI: `.venv/bin/python -m agent.run "a 100W USB-C cable under 20 dollars, return
 
 ## Not done yet (priority order)
 1. **Guard (Tanu): `guard/check()` is still a stub that always returns `ask_human`.** Her task list: [`TANU.md`](TANU.md). Policy backstop → Decision 1 per clause (helper ready) → canary → Neon checker. Keep the verdict shape.
-2. **Web pages (Antigravity):** shopper chat page `/r/{token}` + local-only `/admin` (Live, Orders, Usage, Models, API keys, Red-team). Prompt: [`prompts/ANTIGRAVITY_DASHBOARD.md`](prompts/ANTIGRAVITY_DASHBOARD.md).
+2. **Web pages (Antigravity):** reuse the request's existing `token` (already in `/request` replies and `STATE["requests"]`) for `/r/{token}`, don't add a second one; `/buy` + `/w/{token}` already exist in `server/web.py`. Shopper chat page `/r/{token}` + local-only `/admin` (Live, Orders, Usage, Models, API keys, Red-team). Prompt: [`prompts/ANTIGRAVITY_DASHBOARD.md`](prompts/ANTIGRAVITY_DASHBOARD.md).
 3. **Re-check the real checkout** before handing over the link: checkout total ≤ `max_total_cents`, payee unchanged, warnings shown, refund policy link present when `returns: required`.
 4. **Per-user sessions** so judges don't share one pending cart (key requests by a device id the Shortcut sends).
 5. **Public install** via Tailscale Funnel (Akaash must enable it in the admin console), then `/shortcuts/buy` and `/shortcuts/approve` work for anyone.
