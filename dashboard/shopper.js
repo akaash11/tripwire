@@ -1148,7 +1148,22 @@
     footerMetaEl.textContent = "Tripwire server " + ver + " · sent from " + client;
   }
 
+  // Remember this request on THIS device (no accounts): /history lists them. localStorage can be blocked: ignore.
+  function rememberRequest(w, ev) {
+    try {
+      const key = "tripwire.history";
+      const list = JSON.parse(localStorage.getItem(key) || "[]").filter((x) => x && x.token !== TOKEN);
+      const c = (ev && ev.contract) || (w && w.contract) || {};
+      const picked = (w && w.pending && w.pending.summary) || ((ev && ev.picked) || {}).title || "";
+      list.unshift({ token: TOKEN, summary: c.summary || (ev && ev.request && ev.request.text) || "Tripwire request",
+        status: (w && w.status) || "", picked: String(picked).slice(0, 140),
+        ts: (ev && ev.request && ev.request.ts) || Date.now() / 1000 });
+      localStorage.setItem(key, JSON.stringify(list.slice(0, 50)));
+    } catch (e) { /* private mode or storage blocked */ }
+  }
+
   function renderAll(w, ev) {
+    rememberRequest(w, ev);
     renderStatusBanner(w, ev);
     renderTimeline(w, ev);
     renderStickyBar(w, ev);

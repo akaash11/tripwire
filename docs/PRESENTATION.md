@@ -55,3 +55,22 @@ the over-budget raise, and the "where it still fails" slide.
 
 Tips: do one dry run first; it takes 25 to 50 s for the agent, so cut the wait in editing. Don't show `.env`, keys,
 the admin API-keys tab, or the pay link in the address bar for long.
+
+## Raw screen recordings Akaash hands to Tanu (record these, she edits)
+Before recording: on Akaash's iPhone **turn Tailscale OFF** (the public :10000 links time out while it's on, see
+STATUS); Do Not Disturb on; brightness up; delete old Shortcut and re-install from the QR so the install is on camera.
+Record the phone with Control Center → Screen Recording (long-press → Microphone on if narrating).
+
+| # | Clip (phone unless noted) | Length | Must be visible |
+|---|---|---|---|
+| 1 | Scan the `/install` QR with the Camera → Safari → **Add Shortcut** | 15 s | "Add Shortcut" sheet |
+| 2 | **Happy path:** run Tripwire Buy, say "a braided 100W USB-C cable under 25 dollars", photo of a cable → live page | 30 s | contract card (must/must-not), searches with "5 deliver", picked product, delivered total, the timer |
+| 3 | Tap **Approve & pay on Shop** → merchant's Shop checkout with address + Shop Pay (stop before paying, or pay $1-10 for a real order) | 15 s | store's checkout page, total incl. shipping |
+| 4 | **Tripwire catches a wrong item:** "the orange cat digital sticker from Monday Cartoons", photo of the sticker page | 30 s | "From your photo" (URL read), plain-English reason, no look-alike bought |
+| 5 | **Over budget:** "Black Forest organic gummy bears, budget 6 dollars" → "Raise to $X" card → Approve | 25 s | "Only you can raise it; the agent can't" |
+| 6 | Laptop: `/admin` Live tab (X-ray, Decision scores), Orders (newest first), Red-team tab (0/23 vs 10/23 vs 23/23) | 30 s | the 3-arm numbers |
+| 7 | Laptop (optional): Tripwire ON/OFF switch, OFF lets the poisoned listing through, ON blocks it | 30 s | X-ray "found in listing" |
+| 8 | `/history` on the phone ("My requests") | 5 s | past requests list |
+
+Tips: the agent takes ~18 s; keep recording, Tanu cuts the wait. Don't show `.env`, the API-keys tab, or a pay link
+in the address bar for long. Send Tanu the raw files via AirDrop.

@@ -488,7 +488,8 @@ async def admin_orders(request: Request):
         return denied
     from server.app import STATE
 
-    return {"orders": [_order_payload(o) for o in reversed(STATE["orders"])]}
+    orders = sorted(STATE["orders"], key=lambda o: o.get("ts") or 0, reverse=True)  # newest purchase first
+    return {"orders": [_order_payload(o) for o in orders]}
 
 
 @router.post("/api/admin/orders/{cart_id}/refresh")

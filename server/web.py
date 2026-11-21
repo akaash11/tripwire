@@ -165,5 +165,37 @@ a{{color:inherit;word-break:break-all}}.muted{{color:var(--muted)}}ol{{text-alig
 <div class="card"><h2>2 · Or no install</h2><div class="qr">{_qr_svg(web)}</div>
 <p>Opens the Tripwire page in Safari: photo, voice or text.</p><p class="muted"><a href="{escape(web)}">{escape(web)}</a></p></div>
 </div>
+<p><a href="{escape(base)}/history">My past requests</a></p>
 <p class="muted">You pay on the store's own Shop checkout page: a real order with real money. To test, stop at that page.</p>
 </main></body></html>"""
+
+
+HISTORY = """<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>My Tripwire requests</title><style>
+:root{--bg:#f4f5f7;--card:#fff;--ink:#14213d;--muted:#5b667a;--line:#d6dbe3;--accent:#e3a400}
+@media (prefers-color-scheme:dark){:root{--bg:#0f1626;--card:#18223a;--ink:#e7ecf4;--muted:#9aa7be;--line:#2c3a57;--accent:#f2bc2e}}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.45 system-ui,-apple-system,sans-serif}
+main{max-width:34rem;margin:0 auto;padding:16px}.tape{height:8px;margin:.4rem 0 1rem;
+background:repeating-linear-gradient(-45deg,var(--accent) 0 12px,var(--ink) 12px 24px)}
+a.card{display:block;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin:10px 0;
+color:inherit;text-decoration:none}.muted{color:var(--muted);font-size:.9rem}.pill{font-weight:700;font-size:.8rem}
+</style></head><body><main><h1>My requests</h1><div class="tape"></div>
+<p class="muted">Requests you opened on this device. Tripwire has no accounts; nothing here leaves your phone.</p>
+<div id="list"></div><p><a href="buy">Start a new request</a></p></main><script>
+const L={approve:"Approved",ask_human:"Needs your OK",block:"Blocked",no_checkout:"Not bought",over_budget:"Over budget",
+ shopping:"Shopping",expired:"Expired",agent_failed:"Failed",contract_failed:"Failed"};
+let items=[];try{items=JSON.parse(localStorage.getItem("tripwire.history")||"[]")}catch(e){}
+const list=document.getElementById("list");
+if(!items.length){const p=document.createElement("p");p.textContent="No requests on this device yet.";list.append(p)}
+for(const x of items){const a=document.createElement("a");a.className="card";a.href="r/"+encodeURIComponent(x.token);
+ const t=document.createElement("b");t.textContent=x.summary||"Tripwire request";
+ const s=document.createElement("div");s.className="muted";
+ s.textContent=new Date((x.ts||0)*1000).toLocaleString()+" · "+(L[x.status]||x.status||"")+(x.picked?" · "+x.picked:"");
+ a.append(t,s);list.append(a)}
+</script></body></html>"""
+
+
+@router.get("/history", response_class=HTMLResponse)
+async def history_page():
+    """This device's past requests (from localStorage on the shopper page). No server-side lookup by person."""
+    return HISTORY
