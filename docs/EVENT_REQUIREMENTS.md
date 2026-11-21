@@ -55,9 +55,10 @@ Verified against shop.dev docs and live calls:
 - Every MCP call is one HTTP POST with headers `MCP-Protocol-Version: 2026-07-28`, `Mcp-Method`, `Mcp-Name` and
   `params._meta` naming the protocol version and client. Client: `agent/shop_mcp.py`.
 
-### How Tripwire does a real purchase
-1. Agent picks a variant through `search_products` (Shop MCP live search, quarantined by Tripwire).
-2. Agent calls `request_checkout`. **The agent never gets a checkout or a payment link.**
+### How Tripwire does a real purchase (as built, v1.2)
+1. Agent picks a variant through `search_products` (Shop MCP live search, quarantined by Tripwire; the top 5 are
+   quoted for delivery + delivered total on the merchants' real checkouts; a product link goes through `lookup_catalog`).
+2. Agent calls `buy`. **The agent never gets a checkout or a payment link.**
 3. Guard checks the cart against the signed Intent Contract.
 4. Approve (or the human approves on the phone) → **Tripwire** calls `create_checkout` with the exact variant and shop
    domain from search, checks the checkout's real totals/warnings/refund policy against the contract again, then

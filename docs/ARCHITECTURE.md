@@ -7,20 +7,34 @@ checkout, paid by the shopper with Shop Pay on the checkout page. Requirements: 
 
 ```mermaid
 flowchart LR
-  U[iPhone: voice + photo\nTripwire Buy] -->|POST /request| S[Tripwire server]
-  S --> C[Contract compiler\nGemini 4 Neon\nfallback Flash-Lite]
-  C -->|Ed25519-signed contract| G
-  S --> A[Shopping agent\nAntigravity managed agent\nonly 3 custom functions]
-  A -->|search_products| Q[Quarantine]
-  Q --> M[(Shop MCP\nmcp.shop.com)]
-  A -->|add_to_cart| K[Cart]
-  A -->|request_checkout| G[Guard]
-  G -->|approve| X[Tripwire creates real checkout\nShop MCP create_checkout]
-  X -->|continue_url| PAY[Shopper pays with Shop Pay\non the checkout page]
-  G -->|ask_human| P[iPhone: Tripwire Approve]
-  G -->|block| B[X-ray + log]
-  R[Red-team harness\nGemini 4 Carbon] -.poisoned listings.-> Q
-  D[Dashboard: localhost only] --- S
+  U[iPhone: Tripwire Buy Shortcut
+or /buy web page: voice + photo] -->|POST /request| S[Tripwire server]
+  S --> C[Contract compiler
+Gemini 4 Neon, thinking low
+fallback Flash-Lite]
+  C -->|Ed25519-signed contract
+budget = delivered total| A
+  S --> A[Shopping agent
+Antigravity managed agent
+2 custom functions: search_products, buy]
+  A -->|search_products| Q[Quarantine + link lookup]
+  Q --> M[(Shop MCP
+search_catalog, lookup_catalog)]
+  Q -->|top 5 quoted in parallel| QT[create_checkout with coarse ship-to
+delivers? delivered total?]
+  A -->|buy| G[Guard: policy, canary,
+Decisions API per clause, Neon checker]
+  G --> F[Delivery/price quote + final check
+nonce used at handover]
+  F -->|approve| PAY[Shopper page /r/token:
+Pay on the store's Shop checkout]
+  F -->|ask_human / over budget| P[Shopper page: X-ray,
+Approve / Block / Raise budget]
+  P -->|Approve| PAY
+  G -->|block| B[X-ray]
+  R[Red-team harness
+Gemini 4 Carbon] -.poisoned listings.-> G
+  D[Admin: localhost only] --- S
 ```
 
 ## Components
@@ -28,7 +42,10 @@ flowchart LR
 |---|---|---|
 | Server | `server/app.py` | Phone routes `/request`, `/pending`, `/approve` (reply fast, work in background); dashboard API (localhost only); `/pubkey` |
 | Contract compiler | `agent/contract.py` | Voice + photo → contract with `must` / `must_not` clauses, price cap, returns, nonce, expiry; Ed25519-signed |
-| Shopping agent | `agent/` | Antigravity managed agent with **only** `search_products`, `add_to_cart`, `request_checkout` (no code execution, search or URL tools) |
+| Shopping agent | `agent/` | Antigravity managed agent with **only** `search_products` and `buy` (no code execution, search or URL tools). `buy` = add to cart + ask Tripwire, one turn |
+| Delivery/price quote | `agent/tools.py` `_prequote`, `quote` | The top 5 search results are quoted in parallel on the merchants' real checkouts (coarse ship-to `SHIP_TO_*`, no order): can it deliver, delivered total. Reused at checkout (never recreated). Can't deliver / no shipping quote / over budget → agent tries another seller |
+| Product links | `agent/tools.py` `_lookup_link` | If the contract has a `product_url` (spoken, typed, or read off the photo), Shop MCP `lookup_catalog` finds the exact offer; if the store isn't in Shop's catalog, the shopper is told and nothing is substituted |
+| Shopper page | `server/web.py`, `dashboard/shopper.*` | `/r/{token}` (the Shortcut opens `/t/{token}`, which redirects): live timeline, X-ray, Approve / Block, Raise budget (shopper only, contract re-signed), Pay |
 | Shop MCP client | `agent/shop_mcp.py` | `https://mcp.shop.com/`: live search, `create_checkout`, `get_checkout`; currency and ships-to pinned by Tripwire; results quarantined before the agent sees them |
 | Guard | `guard/` | `check(contract, cart, products) -> verdict`: policy backstop, Decision 1 per clause, canary, replay/tamper, Neon contract checker |
 | Checkout | `server/` | **Real** Shop MCP checkout, created by Tripwire (never the agent) only after approval; re-checked against the contract; `continue_url` goes to the shopper's phone |

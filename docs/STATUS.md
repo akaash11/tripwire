@@ -26,6 +26,24 @@ Run: `.venv/bin/uvicorn server.app:app --host 127.0.0.1 --port 8790` · typed te
 `curl -X POST localhost:8790/request_text -H 'content-type: application/json' -d '{"text":"..."}'` then `GET /pending`, `POST /approve`.
 CLI: `.venv/bin/python -m agent.run "a 100W USB-C cable under 20 dollars, returnable"`.
 
+## Now (14:30): stable v1.2 + product links
+**Works end to end, live:** iPhone Shortcut (v1.4) or `/buy` → Neon contract (reads a product link off the photo) →
+agent (search + one-step buy, top 5 quoted in parallel) → Tanu's guard → delivery/price quote → shopper page `/r/{token}`
+(Approve / Block / Raise budget / Pay) → merchant's real Shop checkout. ~18 s typical. 42 tests pass. Install via
+`/install` QR. Admin: local `/admin`. State survives restarts (`data/state.json`).
+**Product links:** Shop `lookup_catalog` by URL. Tested with the Monday Cartoons sticker photo: Neon read
+`mondaycartoons.com/products/digital-sticker` off the screen, Shop answered `not_found` (store not in Shop's catalog;
+its own site also rate-limits automated requests with 429), so Tripwire told the shopper and the agent didn't
+substitute (24 s). Before this, the agent bought a look-alike ("Monday Cat - Sticker", $4) and the guard blocked it.
+
+**Left before submission (freeze 3:30, submit 4:45):**
+1. Tanu: deck ([`PRESENTATION.md`](PRESENTATION.md)); optional: wire `photo_match`, use the checkout's refund-policy
+   link to cut friction (7/12).
+2. Record the 1-minute video at 4:00 (script in PRESENTATION.md).
+3. Make the repo public; check the README renders; submit.
+4. Known limits to say out loud: ship-to is fixed to New York 10001 (should come from Shop `get_account`); digital
+   goods with no shipping line are treated as "no shipping quote"; stores not in Shop's catalog can't be bought.
+
 ## v1.2 (14:05): speed
 Typical request 40-70 s → **~18 s** (measured: cable 18 s, orange Celsius 18 s, both first try). How: the top 5 search
 results are quoted in parallel on the merchants' real checkouts (delivery + delivered total), so the agent picks a

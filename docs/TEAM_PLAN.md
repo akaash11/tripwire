@@ -1,5 +1,7 @@
 # Team plan (@labs: Akaash + Tanu)
 
+**Current state and what's left: [`STATUS.md`](STATUS.md)** (this plan is the morning plan; POC done ~12:30, v1.2 stable at 14:05).
+
 **Rules first: [`EVENT_REQUIREMENTS.md`](EVENT_REQUIREMENTS.md).** Architecture: [`ARCHITECTURE.md`](ARCHITECTURE.md). Commit small and often.
 
 ## Strategy: POC first, then add features
