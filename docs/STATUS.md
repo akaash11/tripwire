@@ -26,6 +26,14 @@ Run: `.venv/bin/uvicorn server.app:app --host 127.0.0.1 --port 8790` · typed te
 `curl -X POST localhost:8790/request_text -H 'content-type: application/json' -d '{"text":"..."}'` then `GET /pending`, `POST /approve`.
 CLI: `.venv/bin/python -m agent.run "a 100W USB-C cable under 20 dollars, returnable"`.
 
+## v1.2 (14:05): speed
+Typical request 40-70 s → **~18 s** (measured: cable 18 s, orange Celsius 18 s, both first try). How: the top 5 search
+results are quoted in parallel on the merchants' real checkouts (delivery + delivered total), so the agent picks a
+deliverable, in-budget item first time; one `buy` tool instead of add_to_cart + request_checkout; no closing agent turn.
+Contract stays on Neon: Hydrogen is 4 s faster to compile but its looser clauses sent buys to a human (slower overall).
+Security talk track: [`SECURITY.md`](SECURITY.md). Idea: Shop `lookup_catalog` accepts public product URLs, so a pasted
+link (or one Neon reads off the photo, e.g. mondaycartoons.com) could find items search misses.
+
 ## Stable v1.0 (13:30) and what's left
 **v1.0 (tag `v1.0`):** phone Shortcut v1.4 + `/buy` → Neon contract → agent on Shop MCP → Tanu's guard (policy, canary,
 Decisions per clause, Neon checker, receipts, replay) → delivered-price + delivery quote with seller retry → shopper
