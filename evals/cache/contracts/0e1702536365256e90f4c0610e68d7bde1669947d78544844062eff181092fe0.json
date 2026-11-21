@@ -1,0 +1,66 @@
+{
+  "request": "a 30W USB-C charger under 25 dollars",
+  "contract": {
+    "contract_id": "ic_96ec010213f0",
+    "created_at": "2026-11-21T17:52:15+00:00",
+    "expires_at": "2026-11-21T18:22:15+00:00",
+    "nonce": "08af61c4c320b99e76d4299a",
+    "user_request": "a 30W USB-C charger under 25 dollars",
+    "photo_observations": [],
+    "item": "30W USB-C charger",
+    "must": [
+      {
+        "id": "m1",
+        "clause": "supports at least 30W output"
+      },
+      {
+        "id": "m2",
+        "clause": "has a USB-C port"
+      }
+    ],
+    "must_not": [
+      {
+        "id": "n1",
+        "clause": "output under 30W"
+      },
+      {
+        "id": "n2",
+        "clause": "lacks USB-C port"
+      },
+      {
+        "id": "n3",
+        "clause": "cable-only listing without charger"
+      }
+    ],
+    "max_total_cents": 2500,
+    "quantity": 1,
+    "returns": "preferred",
+    "search_query": "30W USB-C charger",
+    "summary": "You want a 30W USB-C charger for under 25 dollars.",
+    "assumptions": [
+      "No photo was provided.",
+      "Quantity is assumed to be 1."
+    ],
+    "merchant": {
+      "policy": "any_verified",
+      "allow": [],
+      "deny": []
+    },
+    "currency": "USD",
+    "ships_to": "US",
+    "compiled_by": "gemini-4-neon",
+    "compile_attempts": [
+      {
+        "model": "gemini-4-neon",
+        "ok": true,
+        "latency_ms": 7880
+      }
+    ],
+    "signature": {
+      "alg": "Ed25519",
+      "key_id": "tripwire-demo-1",
+      "sig": "1BkOm07j0j+wzAKC3Ch05HlUdVVylmSb11ZRAu5GruFY+1Nsn+hwuQy4p+wRIOZALGFwPw/NKI4PieKTVJFpDA=="
+    }
+  },
+  "compiled_by": "gemini-4-neon"
+}

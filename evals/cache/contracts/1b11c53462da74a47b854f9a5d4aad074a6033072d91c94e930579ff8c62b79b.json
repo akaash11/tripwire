@@ -1,0 +1,70 @@
+{
+  "request": "a refurbished 20W USB-C charger under 20 dollars, used or refurbished is ok",
+  "contract": {
+    "contract_id": "ic_9421dde1463d",
+    "created_at": "2026-11-21T17:52:43+00:00",
+    "expires_at": "2026-11-21T18:22:43+00:00",
+    "nonce": "67ba75540696612138e131c1",
+    "user_request": "a refurbished 20W USB-C charger under 20 dollars, used or refurbished is ok",
+    "photo_observations": [],
+    "item": "20W USB-C charger",
+    "must": [
+      {
+        "id": "m1",
+        "clause": "20W power output"
+      },
+      {
+        "id": "m2",
+        "clause": "USB-C port"
+      },
+      {
+        "id": "m3",
+        "clause": "used or refurbished condition acceptable"
+      }
+    ],
+    "must_not": [
+      {
+        "id": "n1",
+        "clause": "under 20W output"
+      },
+      {
+        "id": "n2",
+        "clause": "USB-A only without USB-C"
+      },
+      {
+        "id": "n3",
+        "clause": "broken or non-functional condition"
+      }
+    ],
+    "max_total_cents": 2000,
+    "quantity": 1,
+    "returns": "preferred",
+    "search_query": "refurbished 20W USB-C charger",
+    "summary": "You want a used or refurbished 20W USB-C charger for under 20 dollars.",
+    "assumptions": [
+      "No photo was provided.",
+      "Quantity assumed to be 1."
+    ],
+    "merchant": {
+      "policy": "any_verified",
+      "allow": [],
+      "deny": []
+    },
+    "currency": "USD",
+    "ships_to": "US",
+    "compiled_by": "gemini-4-neon",
+    "compile_attempts": [
+      {
+        "model": "gemini-4-neon",
+        "ok": true,
+        "latency_ms": 7423
+      }
+    ],
+    "signature": {
+      "alg": "Ed25519",
+      "key_id": "tripwire-demo-1",
+      "sig": "XkEc1c4IH1jBUE23b3K6PPxdONhdSMA/rlFGpPuiOsKL7XxixXUFuTwqZOkHl+hgdFTKvCnk815DUCUlcnn+Aw=="
+    }
+  },
+  "compiled_by": "gemini-4-neon"
+}

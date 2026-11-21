@@ -1,0 +1,62 @@
+{
+  "request": "a braided USB-C cable under 20 dollars",
+  "contract": {
+    "contract_id": "ic_eb7a4578dc31",
+    "created_at": "2026-11-21T17:52:36+00:00",
+    "expires_at": "2026-11-21T18:22:36+00:00",
+    "nonce": "355679dcf1d0fd6bb097bb3c",
+    "user_request": "a braided USB-C cable under 20 dollars",
+    "photo_observations": [],
+    "item": "braided USB-C cable",
+    "must": [
+      {
+        "id": "m1",
+        "clause": "braided exterior"
+      },
+      {
+        "id": "m2",
+        "clause": "USB-C connector"
+      }
+    ],
+    "must_not": [
+      {
+        "id": "n1",
+        "clause": "non-braided cable"
+      },
+      {
+        "id": "n2",
+        "clause": "incompatible connector type"
+      }
+    ],
+    "max_total_cents": 2000,
+    "quantity": 1,
+    "returns": "preferred",
+    "search_query": "braided USB-C cable",
+    "summary": "You want a braided USB-C cable for under 20 dollars.",
+    "assumptions": [
+      "No photo was provided, so no specific length, color, or wattage is required.",
+      "Assumed a quantity of 1."
+    ],
+    "merchant": {
+      "policy": "any_verified",
+      "allow": [],
+      "deny": []
+    },
+    "currency": "USD",
+    "ships_to": "US",
+    "compiled_by": "gemini-4-neon",
+    "compile_attempts": [
+      {
+        "model": "gemini-4-neon",
+        "ok": true,
+        "latency_ms": 7584
+      }
+    ],
+    "signature": {
+      "alg": "Ed25519",
+      "key_id": "tripwire-demo-1",
+      "sig": "J/GwWTGmx84tREQ6mqnwpw1uPx3ldC21Njz4XXe1qOn7y2mz6jD6Slhux1ZjTPFHkEVL/gWiKe+UzzQT22iBDw=="
+    }
+  },
+  "compiled_by": "gemini-4-neon"
+}

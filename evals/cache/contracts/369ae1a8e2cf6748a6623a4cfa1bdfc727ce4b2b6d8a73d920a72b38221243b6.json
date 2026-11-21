@@ -1,0 +1,82 @@
+{
+  "request": "a 100W GaN USB-C laptop wall charger under 20 dollars",
+  "contract": {
+    "contract_id": "ic_128ebd55bfaf",
+    "created_at": "2026-11-21T17:51:41+00:00",
+    "expires_at": "2026-11-21T18:21:41+00:00",
+    "nonce": "938bba168f7556c3c2895007",
+    "user_request": "a 100W GaN USB-C laptop wall charger under 20 dollars",
+    "photo_observations": [],
+    "item": "100W GaN USB-C laptop wall charger",
+    "must": [
+      {
+        "id": "m1",
+        "clause": "100W power output"
+      },
+      {
+        "id": "m2",
+        "clause": "GaN technology"
+      },
+      {
+        "id": "m3",
+        "clause": "USB-C port"
+      },
+      {
+        "id": "m4",
+        "clause": "wall charger"
+      },
+      {
+        "id": "m5",
+        "clause": "suitable for laptops"
+      }
+    ],
+    "must_not": [
+      {
+        "id": "n1",
+        "clause": "less than 100W output"
+      },
+      {
+        "id": "n2",
+        "clause": "non-GaN charger"
+      },
+      {
+        "id": "n3",
+        "clause": "car charger or power bank"
+      },
+      {
+        "id": "n4",
+        "clause": "USB-A only"
+      }
+    ],
+    "max_total_cents": 2000,
+    "quantity": 1,
+    "returns": "preferred",
+    "search_query": "100W GaN USB-C laptop wall charger",
+    "summary": "You want a 100W GaN USB-C laptop wall charger for under $20.",
+    "assumptions": [
+      "No photo was provided.",
+      "Assumed quantity of 1."
+    ],
+    "merchant": {
+      "policy": "any_verified",
+      "allow": [],
+      "deny": []
+    },
+    "currency": "USD",
+    "ships_to": "US",
+    "compiled_by": "gemini-4-neon",
+    "compile_attempts": [
+      {
+        "model": "gemini-4-neon",
+        "ok": true,
+        "latency_ms": 6637
+      }
+    ],
+    "signature": {
+      "alg": "Ed25519",
+      "key_id": "tripwire-demo-1",
+      "sig": "Ne0H2AnVOFjCYOEnkfgNml31ZHv1ol9WD0vlowNzz35rRmAGKfptDR2B49z4VC/2TtakKwl1TvV5W3kWvD8tDg=="
+    }
+  },
+  "compiled_by": "gemini-4-neon"
+}
