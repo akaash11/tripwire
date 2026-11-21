@@ -9,6 +9,7 @@ Dashboard API (localhost only): GET /api/state
 from __future__ import annotations
 
 import asyncio
+import re
 import pathlib
 import secrets
 import time
@@ -121,6 +122,7 @@ async def process_request(req_id: str) -> None:
     v = session.verdict
     if v is None:
         r["status"] = "no_checkout"
+        r["problem"] = getattr(session, "last_problem", None)
         return
     r["status"] = v["verdict"]
     if session.pending_cart:
@@ -145,7 +147,7 @@ async def process_request(req_id: str) -> None:
 
 @app.post("/request")
 async def request_route(audio: UploadFile | None = File(None), photo: UploadFile | None = File(None),
-                        text: str | None = Form(None)):
+                        text: str | None = Form(None), client: str | None = Form(None)):
     if rate_limited():
         return JSONResponse({"speak": "Tripwire is busy. Try again in a minute.", "contract_id": None}, status_code=429)
     if budget_reached():
@@ -167,9 +169,11 @@ async def request_route(audio: UploadFile | None = File(None), photo: UploadFile
         return JSONResponse({"speak": "Tripwire didn't receive your voice or photo. Please try again.",
                              "contract_id": None}, status_code=400)
     token = secrets.token_urlsafe(16)  # per-request view/decide token (web page + shopper chat page)
+    client = re.sub(r"[^A-Za-z0-9 ._-]", "", client or "")[:40] or "unknown"  # e.g. "Tripwire Buy 1.3", "web 1.3"
     STATE["requests"].append({"id": req_id, "ts": time.time(), "files": saved, "text": text, "status": "received",
-                              "token": token})
-    event("request_received", request_id=req_id, files={k: v["bytes"] for k, v in saved.items()}, text=text)
+                              "token": token, "client": client})
+    event("request_received", request_id=req_id, files={k: v["bytes"] for k, v in saved.items()}, text=text,
+          client=client)
     asyncio.create_task(process_request(req_id))
     return {"speak": "Got it. Opening your Tripwire page.",
             "contract_id": req_id, "token": token, "view_url": f"/r/{token}"}

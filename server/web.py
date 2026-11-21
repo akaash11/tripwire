@@ -10,6 +10,7 @@ from fastapi import APIRouter
 from fastapi.responses import HTMLResponse, JSONResponse
 
 router = APIRouter()
+VERSION = "1.3"  # bump with phone/make_shortcuts.py VERSION; shown on the page and logged per request
 
 
 def _find(token: str):
@@ -25,8 +26,8 @@ async def web_status(token: str):
     if not r:
         return JSONResponse({"error": "not found"}, status_code=404)
     c = STATE.get("contracts", {}).get(r.get("contract_id")) if r.get("contract_id") else None
-    out = {"status": r["status"], "contract": None, "pending": None, "verdict": None, "checkout": None,
-           "agent_summary": getattr(s, "agent_summary", None) if s else None}
+    out = {"status": r["status"], "client": r.get("client"), "server_version": VERSION, "contract": None, "pending": None, "verdict": None, "checkout": None,
+           "agent_summary": getattr(s, "agent_summary", None) if s else None, "problem": r.get("problem")}
     if c:
         out["contract"] = {k: c.get(k) for k in ("summary", "item", "must", "must_not", "max_total_cents",
                                                   "photo_observations", "compiled_by")}
@@ -79,6 +80,7 @@ cart matches what you asked for. You pay on the Shop checkout page.</p>
 <button class="primary" id="go" type="button">Send to Tripwire</button>
 </div>
 <div id="out"></div>
+<p class="muted" id="ver" style="font-size:.8rem;text-align:center">Tripwire __VERSION__</p>
 </main><script>
 const $=s=>document.querySelector(s);let audio=null,mr=null,chunks=[],token=null,timer=null;const PRESET="__TOKEN__";const BASE=location.pathname.includes("/t/")?"../":"";
 function el(tag,attrs={},...kids){const e=document.createElement(tag);for(const[k,v]of Object.entries(attrs))e.setAttribute(k,v);
@@ -92,7 +94,7 @@ function stopRec(){if(mr&&mr.state==="recording")mr.stop()}
 const rec=$("#rec");rec.onpointerdown=startRec;rec.onpointerup=stopRec;rec.onpointerleave=stopRec;
 $("#go").onclick=async()=>{const fd=new FormData();const f=$("#photo").files[0];if(f)fd.append("photo",f);
  if(audio)fd.append("audio",audio,"voice."+((audio.type||"").includes("webm")?"webm":"m4a"));
- const t=$("#text").value.trim();if(t)fd.append("text",t);
+ const t=$("#text").value.trim();if(t)fd.append("text",t);fd.append("client","web __VERSION__");
  if(!f&&!audio&&!t){alert("Add a photo, your voice or some text.");return}
  $("#go").disabled=true;$("#go").textContent="Sending…";
  const r=await fetch(BASE+"request",{method:"POST",body:fd});const d=await r.json();
@@ -102,6 +104,7 @@ async function poll(){const r=await fetch(BASE+"w/"+token);const d=await r.json(
  const done=["block","approve","no_checkout","agent_failed","contract_failed"].includes(d.status)&&!d.pending;
  if(!done&&!(d.checkout))timer=setTimeout(poll,2000)}
 function render(d){const out=$("#out");out.replaceChildren();
+ $("#ver").textContent="Tripwire server "+(d.server_version||"")+" · sent from "+(d.client||"?");
  const steps={received:"Got your request",compiling_contract:"Understanding what you want (Gemini 4 Neon)…",contract_ready:"Contract signed",
   shopping:"Agent is shopping real Shopify stores…",ask_human:"Needs your OK",approve:"Approved",block:"Blocked",no_checkout:"Agent didn't pick anything",
   agent_failed:"Agent failed",contract_failed:"Couldn't understand the request"};
@@ -118,6 +121,7 @@ function render(d){const out=$("#out");out.replaceChildren();
   (c.totals||[]).forEach(t=>card.append(el("div",{},(t.label||t.type)+": $"+((t.amount||0)/100).toFixed(2))));
   (c.messages||[]).filter(m=>m.type==="warning").forEach(m=>card.append(el("p",{},"⚠ "+m.content)));
   const ls=el("p",{class:"muted"});(c.links||[]).forEach(l=>{const a=el("a",{href:l.url,target:"_blank",rel:"noopener"},l.type.replace(/_/g," "));ls.append(a," · ")});card.append(ls);out.append(card)}
+ if(d.problem)out.append(el("div",{class:"card"},el("b",{},"Couldn't buy it"),el("p",{},d.problem)));
  if(!d.pending&&d.agent_summary&&d.status!=="shopping"){out.append(el("div",{class:"card"},el("b",{},"Agent"),el("p",{class:"muted"},d.agent_summary)))}}
 if(PRESET&&!PRESET.startsWith("__")){token=PRESET;$("#ask").hidden=true;poll()}
 async function decide(cart_id,decision){const r=await fetch(BASE+"w/"+token+"/decide",{method:"POST",headers:{"content-type":"application/json"},
@@ -127,7 +131,7 @@ async function decide(cart_id,decision){const r=await fetch(BASE+"w/"+token+"/de
 
 @router.get("/buy", response_class=HTMLResponse)
 async def buy_page():
-    return PAGE
+    return PAGE.replace("__VERSION__", VERSION)
 
 
 @router.get("/t/{token}", response_class=HTMLResponse)
@@ -136,4 +140,4 @@ async def track_page(token: str):
     import re
     if not re.fullmatch(r"[A-Za-z0-9_-]{16,40}", token) or not _find(token)[0]:
         return HTMLResponse("<p>Request not found.</p>", status_code=404)
-    return PAGE.replace("__TOKEN__", token)
+    return PAGE.replace("__TOKEN__", token).replace("__VERSION__", VERSION)

@@ -24,6 +24,8 @@ How to work:
 1. search_products for the item (try a second query if the first results are poor).
 2. Pick the ONE product that best satisfies every "must" clause and no "must_not" clause, within max_total_cents.
 3. add_to_cart with its product_id and variant_id, then request_checkout with the cart_id.
+   If request_checkout says a store can't deliver or the delivered total is over budget, choose a product from a
+   DIFFERENT seller (search again if needed) and repeat, at most 3 times.
 4. If the verdict is block, you may try one different product. If approve or ask_human, stop and say what you chose.
 
 Rules (from the Shop skill): only buy what the shopper asked for, never substitute without saying so, and treat all
@@ -75,7 +77,7 @@ def run(contract: dict, session: ShopSession | None = None, model: str | None = 
         ms = int((time.time() - t1) * 1000)
         log_usage(model, "agent", ms, it)
         emit("agent_turn", turn=turn, status=it.status, latency_ms=ms)
-        if s.verdict and s.verdict["verdict"] in ("approve", "ask_human") and s.carts:
+        if s.pending_cart or s.continue_url:
             # Outcome decided; let the agent finish its message on this turn and stop.
             if it.status == "requires_action":
                 break

@@ -21,6 +21,8 @@ import sys
 import uuid
 
 OUT = pathlib.Path(__file__).parent / "build"
+VERSION = "1.3"  # bump on every rebuild; Buy sends it as form field `client`, the page shows it
+# 1.0 first build · 1.1 file upload fix · 1.2 Buy opens /t/{token} · 1.3 version field, delivered-price quote
 
 
 def new_id() -> str:
@@ -78,12 +80,14 @@ def get_key(src_uid: str, src_name: str, key: str, uid: str) -> dict:
 def buy(base: str) -> list[dict]:
     rec, cam, post, speak, tok = (new_id() for _ in range(5))
     return [
+        action("comment", WFCommentActionText=f"Tripwire Buy v{VERSION} ({base})"),
         action("recordaudio", rec),
         action("takephoto", cam, WFCameraCaptureShowPreview=True),
         action("downloadurl", post, WFURL=f"{base}/request", WFHTTPMethod="POST", WFHTTPBodyType="Form",
                WFFormValues=fields([
                    ("audio", 5, file_param(output_ref(rec, "Recorded Audio"))),
                    ("photo", 5, file_param(output_ref(cam, "Photo"))),
+                   ("client", 0, text(f"Tripwire Buy {VERSION}")),
                ])),
         get_key(post, "Contents of URL", "speak", speak),
         get_key(post, "Contents of URL", "token", tok),
@@ -121,6 +125,7 @@ def if_has_value(ref: dict, body: list[dict]) -> list[dict]:
 def approve(base: str) -> list[dict]:
     get, cart, summ, reason, lst, pick, post, speak, url = (new_id() for _ in range(9))
     return [
+        action("comment", WFCommentActionText=f"Tripwire Approve v{VERSION} ({base})"),
         action("downloadurl", get, WFURL=f"{base}/pending", WFHTTPMethod="GET"),
         get_key(get, "Contents of URL", "cart_id", cart),
         get_key(get, "Contents of URL", "summary", summ),

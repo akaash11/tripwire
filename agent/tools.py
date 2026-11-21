@@ -7,6 +7,7 @@ guard.check(). A real Shop checkout is created by Tripwire only after approval (
 from __future__ import annotations
 
 import hashlib
+import os
 import json
 import re
 import secrets
@@ -64,6 +65,15 @@ def _product_url(p: dict, v: dict) -> str | None:
         if isinstance(u, str) and u.startswith(("https://", "http://")):
             return u
     return None
+
+
+def ship_to() -> dict:
+    """Coarse delivery locality for quotes (no street, no name). Set SHIP_TO_* in .env to the shopper's area."""
+    d = {"address_country": os.environ.get("SHIP_TO_COUNTRY", "US"),
+         "address_region": os.environ.get("SHIP_TO_REGION", "NY"),
+         "address_locality": os.environ.get("SHIP_TO_CITY", "New York"),
+         "postal_code": os.environ.get("SHIP_TO_POSTAL", "10001")}
+    return {k: v for k, v in d.items() if v}
 
 
 class ShopSession:
@@ -150,6 +160,24 @@ class ShopSession:
         red = guard.reduced(v)
         self.on_event("verdict", cart_id=cart_id, verdict=v["verdict"], enforced=v.get("enforced"),
                       reason=red.get("reason", ""))
+        if v["verdict"] == "block" and v.get("enforced", True):
+            return red
+        # Real delivered price + deliverability, from the merchant's own checkout, before anyone approves.
+        problem = self.quote(cart)
+        if problem:
+            self.on_event("delivery_check", cart_id=cart_id, ok=False, reason=problem)
+            self.verdict, self.last_problem = None, problem  # not an outcome: the agent should try another seller
+            tried = {c["payee"].get("name") for c in self.carts.values()}
+            others = [{"product_id": p.get("id"), "variant_id": vid, "title": _TAGS.sub("", p.get("title") or "")[:120],
+                       "price_cents": ((p["variants"][0].get("price") or {}).get("amount")),
+                       "seller": (p["variants"][0].get("seller") or {}).get("name")}
+                      for vid, p in self.products.items()
+                      if (p["variants"][0].get("seller") or {}).get("name") not in tried][:5]
+            return {"verdict": "try_another_seller", "reason": problem,
+                    "next_step": "add_to_cart one of other_sellers that matches the contract, then request_checkout",
+                    "other_sellers": others}
+        self.last_problem = None
+        self.on_event("delivery_check", cart_id=cart_id, ok=True, summary=cart["summary"])
         go = v["verdict"] == "approve" or not v.get("enforced", True)
         if go:
             self.open_checkout(cart)
@@ -157,19 +185,51 @@ class ShopSession:
             self.pending_cart = cart
         return red
 
-    # ---- after approval ------------------------------------------------------------------------------------------
-    def open_checkout(self, cart: dict) -> dict:
-        """Create the REAL Shop checkout (places no order). The shopper pays on continue_url."""
+    def quote(self, cart: dict) -> str | None:
+        """Create the merchant's real checkout (no order) with a coarse destination. Returns a problem or None.
+        The same checkout is handed to the shopper after approval (Shop MCP: never recreate a checkout)."""
+        self.quotes = getattr(self, "quotes", 0) + 1
+        if self.quotes > 4:
+            return "Tried too many stores."
         line = cart["lines"][0]
-        shop_domain = cart["payee"]["shop_domain"]
-        c = shop_mcp.create_checkout(shop_domain, line["variant_id"], line["quantity"],
-                                     country=self.contract.get("ships_to", "US"))
+        c = shop_mcp.create_checkout(cart["payee"]["shop_domain"], line["variant_id"], line["quantity"],
+                                     country=self.contract.get("ships_to", "US"), destination=ship_to())
+        codes = {m.get("code") for m in c.get("messages", [])}
+        totals = {x.get("type"): x.get("amount") for x in c.get("totals", [])}
+        where = ship_to().get("address_locality") or ship_to().get("address_region") or "your area"
+        if shop_mcp.NO_DELIVERY in codes:
+            return f"{cart['payee'].get('name')} can't deliver to {where}."
+        if "fulfillment" not in totals:  # no shipping quote at all = local pickup/delivery only (seen: Anekali's Market)
+            return f"{cart['payee'].get('name')} didn't quote shipping to {where} (local pickup or delivery only)."
+        total, cap = totals.get("total"), self.contract.get("max_total_cents")
+        if total is not None and cap and total > cap:
+            return (f"Delivered total is ${total/100:.2f} (item ${(totals.get('subtotal') or 0)/100:.2f}, shipping "
+                    f"${(totals.get('fulfillment') or 0)/100:.2f}, tax/duty ${((totals.get('tax') or 0)+(totals.get('duty') or 0))/100:.2f}), "
+                    f"over the ${cap/100:.2f} budget.")
+        self._store_checkout(cart, c)
+        if total is not None:
+            ship = totals.get("fulfillment")
+            cart["summary"] += (f", ${total/100:.2f} delivered to {where}"
+                                + (f" (shipping ${ship/100:.2f})" if ship else " (free shipping)" if ship == 0 else ""))
+        return None
+
+    def _store_checkout(self, cart: dict, c: dict) -> None:
         self.continue_url = c.get("continue_url")
         self._checkout_id = c.get("id")
-        self._shop_domain = shop_domain
+        self._shop_domain = cart["payee"]["shop_domain"]
+        self._checkout_cart = cart["cart_id"]
         self.checkout = shop_mcp.checkout_view(c)
         self.checkout["cart_id"] = cart["cart_id"]
         self.checkout["shop_name"] = cart["payee"].get("name")
+
+    # ---- after approval ------------------------------------------------------------------------------------------
+    def open_checkout(self, cart: dict) -> dict:
+        """Hand over the REAL Shop checkout (places no order). Reuses the quoted one; the shopper pays on continue_url."""
+        if not (getattr(self, "_checkout_cart", None) == cart["cart_id"] and self.continue_url):
+            line = cart["lines"][0]
+            c = shop_mcp.create_checkout(cart["payee"]["shop_domain"], line["variant_id"], line["quantity"],
+                                         country=self.contract.get("ships_to", "US"), destination=ship_to())
+            self._store_checkout(cart, c)
         self.on_event("checkout_created", cart_id=cart["cart_id"], status=self.checkout["status"],
                       totals=self.checkout["totals"])
         return self.checkout
