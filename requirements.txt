@@ -1,0 +1,7 @@
+google-genai
+cryptography
+fastapi
+uvicorn
+python-multipart
+httpx
+pillow
