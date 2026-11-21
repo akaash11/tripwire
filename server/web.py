@@ -6,11 +6,14 @@ Each request has its own unguessable token, so people don't see or approve each 
 """
 from __future__ import annotations
 
+import pathlib
+
 from fastapi import APIRouter
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 
 router = APIRouter()
 VERSION = "1.5"  # bump with phone/make_shortcuts.py VERSION; shown on the page and logged per request
+DASHBOARD_DIR = pathlib.Path(__file__).resolve().parents[1] / "dashboard"
 
 
 def _find(token: str):
@@ -77,7 +80,7 @@ async def web_raise_budget(token: str, body: dict):
 @router.post("/w/{token}/pay")
 async def web_pay(token: str):
     """Tripwire auto-approved (no human step needed): hand the shopper the merchant's checkout link on tap."""
-    from server.app import STATE
+    from server.app import STATE, persist
     r, s = _find(token)
     if not r or not s or not s.continue_url or s.pending_cart:
         return {"ok": False, "speak": "No checkout ready for this request.", "url": ""}
@@ -85,6 +88,7 @@ async def web_pay(token: str):
         STATE["orders"].append({"cart_id": (s.checkout or {}).get("cart_id"), "request_id": r["id"], "ts": __import__("time").time(),
                                 "checkout": s.checkout, "status": (s.checkout or {}).get("status") or "awaiting_payment",
                                 "agent_summary": getattr(s, "agent_summary", None)})
+        persist()
     return {"ok": True, "url": s.continue_url, "speak": "Opening the Shop checkout."}
 
 
@@ -98,111 +102,26 @@ async def web_decide(token: str, body: dict):
     return await decide({"cart_id": s.pending_cart["cart_id"], "request_id": r["id"]}, decision)
 
 
-PAGE = """<!doctype html><html lang="en"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1"><title>Tripwire</title>
-<style>
-:root{--bg:#f4f5f7;--card:#fff;--ink:#14213d;--muted:#5b667a;--line:#d6dbe3;--accent:#e3a400;--ok:#23795a;--no:#c2372c;--ask:#2f5da8}
-@media (prefers-color-scheme:dark){:root{--bg:#0f1626;--card:#18223a;--ink:#e7ecf4;--muted:#9aa7be;--line:#2c3a57;--accent:#f2bc2e;--ok:#4fc796;--no:#f06a5e;--ask:#7fa6ec}}
-*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.45 system-ui,-apple-system,sans-serif}
-main{max-width:34rem;margin:0 auto;padding:16px}h1{font-size:1.6rem;margin:.2rem 0}.tape{height:8px;border-radius:2px;margin:.4rem 0 1rem;
-background:repeating-linear-gradient(-45deg,var(--accent) 0 12px,var(--ink) 12px 24px)}
-.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin:12px 0}
-label{display:block;font-weight:600;margin:.6rem 0 .3rem}textarea,input[type=file]{width:100%}
-textarea{min-height:4.5rem;border:1px solid var(--line);border-radius:8px;padding:8px;font:inherit;background:transparent;color:inherit}
-button{font:inherit;font-weight:700;border:0;border-radius:10px;padding:12px 16px;cursor:pointer;width:100%;margin-top:8px}
-.primary{background:var(--ink);color:var(--bg)}.ok{background:var(--ok);color:#fff}.no{background:var(--no);color:#fff}.ghost{background:transparent;border:1px solid var(--line);color:inherit}
-.muted{color:var(--muted)}.row{display:flex;gap:8px}.row button{flex:1}ul{padding-left:1.1rem;margin:.3rem 0}
-.pill{display:inline-block;padding:2px 10px;border-radius:99px;font-weight:700;font-size:.85rem}
-img.prev{max-width:100%;border-radius:8px;margin-top:6px}
-</style></head><body><main>
-<h1>Tripwire</h1><div class="tape"></div>
-<p class="muted">Tell Tripwire what to buy. An AI agent shops real Shopify stores; Tripwire only lets it check out if the
-cart matches what you asked for. You pay on the Shop checkout page.</p>
-<div class="card" id="ask">
-<label for="photo">Photo of the item or its label (optional)</label>
-<input id="photo" type="file" accept="image/*" capture="environment"><img id="prev" class="prev" alt="" hidden>
-<label>Say it</label><div class="row"><button class="ghost" id="rec" type="button">Hold to talk</button></div>
-<p class="muted" id="recstate"></p>
-<label for="budget">Max you want to spend, delivered (optional)</label>
-<input id="budget" type="number" inputmode="decimal" min="1" step="1" placeholder="e.g. 25"
- style="width:100%;border:1px solid var(--line);border-radius:8px;padding:8px;font:inherit;background:transparent;color:inherit">
-<label for="text">Or type it</label><textarea id="text" placeholder="A 100W USB-C cable under $20 with free returns"></textarea>
-<button class="primary" id="go" type="button">Send to Tripwire</button>
-</div>
-<div id="out"></div>
-<p class="muted" id="ver" style="font-size:.8rem;text-align:center">Tripwire __VERSION__</p>
-</main><script>
-const $=s=>document.querySelector(s);let audio=null,mr=null,chunks=[],token=null,timer=null;const PRESET="__TOKEN__";const BASE=location.pathname.includes("/t/")?"../":"";
-function el(tag,attrs={},...kids){const e=document.createElement(tag);for(const[k,v]of Object.entries(attrs))e.setAttribute(k,v);
- for(const k of kids)e.append(k instanceof Node?k:document.createTextNode(String(k??"")));return e}
-$("#photo").onchange=e=>{const f=e.target.files[0];if(f){$("#prev").src=URL.createObjectURL(f);$("#prev").hidden=false}};
-async function startRec(){try{const st=await navigator.mediaDevices.getUserMedia({audio:true});chunks=[];
- mr=new MediaRecorder(st);mr.ondataavailable=e=>chunks.push(e.data);mr.onstop=()=>{audio=new Blob(chunks,{type:mr.mimeType||"audio/mp4"});
- st.getTracks().forEach(t=>t.stop());$("#recstate").textContent="Voice recorded ("+Math.round(audio.size/1024)+" KB)."};
- mr.start();$("#recstate").textContent="Listening… release to stop."}catch(e){$("#recstate").textContent="Mic not available: type instead."}}
-function stopRec(){if(mr&&mr.state==="recording")mr.stop()}
-const rec=$("#rec");rec.onpointerdown=startRec;rec.onpointerup=stopRec;rec.onpointerleave=stopRec;
-$("#go").onclick=async()=>{const fd=new FormData();const f=$("#photo").files[0];if(f)fd.append("photo",f);
- if(audio)fd.append("audio",audio,"voice."+((audio.type||"").includes("webm")?"webm":"m4a"));
- const bud=$("#budget").value.trim();let t=$("#text").value.trim();
- if(bud)t=(t?t+". ":"")+"Budget: $"+bud+" delivered, including shipping and tax.";if(t)fd.append("text",t);fd.append("client","web __VERSION__");
- if(!f&&!audio&&!t){alert("Add a photo, your voice or some text.");return}
- $("#go").disabled=true;$("#go").textContent="Sending…";
- const r=await fetch(BASE+"request",{method:"POST",body:fd});const d=await r.json();
- if(!d.token){$("#go").disabled=false;$("#go").textContent="Send to Tripwire";alert(d.speak||"Failed");return}
- token=d.token;$("#ask").hidden=true;poll()};
-async function poll(){const r=await fetch(BASE+"w/"+token);const d=await r.json();render(d);
- const done=["block","approve","no_checkout","over_budget","agent_failed","contract_failed"].includes(d.status)&&!d.pending;
- if(!done&&!(d.checkout))timer=setTimeout(poll,2000)}
-function render(d){const out=$("#out");out.replaceChildren();
- $("#ver").textContent="Tripwire server "+(d.server_version||"")+" · sent from "+(d.client||"?");
- const steps={received:"Got your request",compiling_contract:"Understanding what you want (Gemini 4 Neon)…",contract_ready:"Contract signed",
-  shopping:"Agent is shopping real Shopify stores…",ask_human:"Needs your OK",over_budget:"Over your budget",approve:"Approved",block:"Blocked",no_checkout:"Agent didn't pick anything",
-  agent_failed:"Agent failed",contract_failed:"Couldn't understand the request"};
- out.append(el("div",{class:"card"},el("b",{},steps[d.status]||d.status)));
- if(d.contract){const c=d.contract;const card=el("div",{class:"card"},el("b",{},"What you asked for"),el("p",{},c.summary||""));
-  const ul=el("ul");(c.must||[]).forEach(m=>ul.append(el("li",{},"Must: "+m.clause)));(c.must_not||[]).forEach(m=>ul.append(el("li",{},"Must not: "+m.clause)));
-  card.append(ul,el("p",{class:"muted"},"Budget $"+((c.max_total_cents||0)/100).toFixed(2)+" delivered"+(c.budget_stated===false?" (Tripwire's guess: you didn't say one)":"")+" · understood by "+(c.compiled_by||"")));out.append(card)}
- if(d.offer){const o=d.offer;const card=el("div",{class:"card"},el("b",{},"Everything is over your budget"),
-  el("p",{},"Cheapest option that delivers to you: "+o.summary+"."),
-  el("p",{class:"muted"},"Your budget: $"+(o.budget_cents/100).toFixed(2)+(o.budget_stated?"":" (a guess)")+". Only you can raise it; the agent can't."));
-  const up=el("button",{class:"ok",type:"button"},"Raise budget to $"+(o.total_cents/100).toFixed(2)),no=el("button",{class:"ghost",type:"button"},"No thanks");
-  up.onclick=async()=>{up.disabled=true;const r=await fetch(BASE+"w/"+token+"/raise_budget",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({cart_id:o.cart_id})});
-   const x=await r.json();if(!x.ok)alert(x.speak);poll()};no.onclick=()=>card.remove();card.append(el("div",{class:"row"},no,up));out.append(card)}
- if(d.pending){const card=el("div",{class:"card"},el("b",{},"The agent wants to buy"),el("p",{},d.pending.summary));
-  if(d.verdict&&d.verdict.reasons&&d.verdict.reasons.length)card.append(el("p",{class:"muted"},"Tripwire: "+d.verdict.reasons.join("; ")));
-  const a=el("button",{class:"ok",type:"button"},"Approve and pay on Shop"),b=el("button",{class:"no",type:"button"},"Block");
-  a.onclick=()=>decide(d.pending.cart_id,"approve");b.onclick=()=>decide(d.pending.cart_id,"block");card.append(el("div",{class:"row"},b,a));out.append(card)}
- else if(d.verdict&&d.verdict.verdict==="block"){out.append(el("div",{class:"card"},el("b",{},"Tripwire blocked this purchase"),el("p",{},(d.verdict.reasons||[]).join("; "))))}
- if(d.pay_ready){const card=el("div",{class:"card"},el("b",{},"Tripwire approved this cart"),
-  el("p",{},(d.verdict&&d.verdict.reasons||[]).slice(0,2).join("; ")));const go=el("button",{class:"ok",type:"button"},"Pay on the store's Shop checkout");
-  go.onclick=async()=>{const r=await fetch(BASE+"w/"+token+"/pay",{method:"POST"});const x=await r.json();if(x.url)location.href=x.url;else alert(x.speak)};
-  card.append(go);out.append(card)}
- if(d.checkout){const c=d.checkout;const card=el("div",{class:"card"},el("b",{},"Shop checkout: "+c.status));
-  (c.totals||[]).forEach(t=>card.append(el("div",{},(t.label||t.type)+": $"+((t.amount||0)/100).toFixed(2))));
-  (c.messages||[]).filter(m=>m.type==="warning").forEach(m=>card.append(el("p",{},"⚠ "+m.content)));
-  if((c.to_fill_on_shop||[]).length)card.append(el("p",{class:"muted"},"You'll enter on the Shop page: "+c.to_fill_on_shop.join(", ")+"."));
-  const ls=el("p",{class:"muted"});(c.links||[]).forEach(l=>{const a=el("a",{href:l.url,target:"_blank",rel:"noopener"},l.type.replace(/_/g," "));ls.append(a," · ")});card.append(ls);out.append(card)}
- if(d.problem&&!d.offer)out.append(el("div",{class:"card"},el("b",{},"Couldn't buy it"),el("p",{},d.problem)));
- if(!d.pending&&d.agent_summary&&d.status!=="shopping"){out.append(el("div",{class:"card"},el("b",{},"Agent"),el("p",{class:"muted"},d.agent_summary)))}}
-if(PRESET&&!PRESET.startsWith("__")){token=PRESET;$("#ask").hidden=true;poll()}
-async function decide(cart_id,decision){const r=await fetch(BASE+"w/"+token+"/decide",{method:"POST",headers:{"content-type":"application/json"},
- body:JSON.stringify({cart_id,decision})});const d=await r.json();if(d.url){location.href=d.url}else{alert(d.speak);poll()}}
-</script></body></html>"""
-
-
 @router.get("/buy", response_class=HTMLResponse)
 async def buy_page():
-    return PAGE.replace("__VERSION__", VERSION)
+    """No-install shopper request page using the shared Tripwire look; redirects to /r/{token}."""
+    html = (DASHBOARD_DIR / "buy.html").read_text(encoding="utf-8")
+    return HTMLResponse(html.replace("__VERSION__", VERSION))
 
 
-@router.get("/t/{token}", response_class=HTMLResponse)
+@router.get("/t/{token}")
 async def track_page(token: str):
-    """Opened by the Buy shortcut right after /request: live progress -> Approve -> real Shop checkout."""
+    """Opened by the Buy shortcut right after /request: 302 redirect to the unified /r/{token} page."""
     import re
     if not re.fullmatch(r"[A-Za-z0-9_-]{16,40}", token) or not _find(token)[0]:
-        return HTMLResponse("<p>Request not found.</p>", status_code=404)
-    return PAGE.replace("__TOKEN__", token).replace("__VERSION__", VERSION)
+        return HTMLResponse(
+            "<!doctype html><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'>"
+            "<title>Tripwire — Not found</title>"
+            "<body style='font-family:system-ui;padding:2rem;max-width:32rem;margin:0 auto'>"
+            "<h1>Request not found</h1><p>This Tripwire link is invalid or has expired.</p></body>",
+            status_code=404,
+        )
+    return RedirectResponse(url=f"../r/{token}", status_code=302)
 
 
 PUBLIC_BASE = "https://akaashs-macbook-pro.tail3c0993.ts.net:10000/tripwire"  # Funnel; override with TRIPWIRE_PUBLIC_BASE

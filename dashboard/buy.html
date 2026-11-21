@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Tripwire — Shop with an AI guard</title>
+  <link rel="stylesheet" href="assets/styles.css">
+</head>
+<body>
+  <div class="tripwire-tape"></div>
+  <main id="buy-shell" class="shopper-shell" data-version="__VERSION__">
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true"></span>
+        <span>Tripwire</span>
+      </div>
+      <button id="theme-toggle" class="btn-sm" type="button" aria-label="Toggle color theme">Theme</button>
+    </header>
+
+    <p class="buy-intro">
+      Tell Tripwire what to buy. An AI agent shops real Shopify stores; Tripwire only lets it check out if the
+      cart matches what you asked for. You pay on Shop.
+    </p>
+
+    <form id="buy-form" class="card" novalidate>
+      <div class="field-group">
+        <label class="field-label" for="photo">Photo of the item or label (optional)</label>
+        <input id="photo" class="file-input-styled" type="file" accept="image/*" capture="environment">
+        <img id="photo-preview" class="buy-photo-preview" alt="Selected photo preview" hidden>
+      </div>
+
+      <div class="field-group">
+        <span class="field-label">Say it (optional)</span>
+        <button id="rec" class="rec-btn" type="button">Hold to talk</button>
+        <div id="rec-state" class="field-hint"></div>
+      </div>
+
+      <div class="field-group">
+        <label class="field-label" for="budget">Max delivered budget (optional)</label>
+        <div class="budget-input-wrap">
+          <span class="budget-prefix">$</span>
+          <input id="budget" type="number" inputmode="decimal" min="1" step="any" placeholder="e.g. 25">
+        </div>
+        <div class="field-hint">Includes item, shipping, and tax.</div>
+      </div>
+
+      <div class="field-group">
+        <label class="field-label" for="text">Or type what you want</label>
+        <textarea id="text" class="buy-textarea" placeholder="A braided 100W USB-C cable under $20 with free returns"></textarea>
+      </div>
+
+      <div id="buy-error" class="callout callout-bad small" hidden></div>
+
+      <div style="margin-top:16px;">
+        <button id="go" class="btn-primary btn-lg btn-block" type="submit">Send to Tripwire</button>
+      </div>
+    </form>
+
+    <footer class="shopper-footer">
+      <div id="footer-meta">Tripwire server __VERSION__ · sent from web __VERSION__</div>
+    </footer>
+  </main>
+
+  <script src="assets/buy.js" defer></script>
+</body>
+</html>

@@ -2,17 +2,17 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Tripwire — Your Request</title>
   <link rel="stylesheet" href="../assets/styles.css">
 </head>
 <body>
   <div class="tripwire-tape"></div>
-  <main class="shopper-shell">
+  <main id="shopper-shell" class="shopper-shell">
     <header class="topbar">
       <div class="brand">
+        <span class="brand-mark" aria-hidden="true"></span>
         <span>Tripwire</span>
-        <span id="status-pill" class="pill pill-info">Loading…</span>
       </div>
       <div style="display:flex;align-items:center;gap:8px;">
         <span id="live-indicator" class="small muted" style="display:inline-flex;align-items:center;gap:6px;">
@@ -22,10 +22,29 @@
       </div>
     </header>
 
+    <section id="status-banner" class="status-banner tone-info" aria-live="polite">
+      <div class="status-banner-head">
+        <h1 id="status-headline" class="status-headline">Understanding…</h1>
+        <span id="status-elapsed" class="status-elapsed num">0s</span>
+      </div>
+      <p id="status-sub" class="status-sub">Connecting to your Tripwire session…</p>
+      <div class="progress-line" role="progressbar" aria-label="Request progress">
+        <div id="progress-fill" class="progress-fill indeterminate"></div>
+      </div>
+      <div id="stepper" class="stepper" aria-label="Shopping steps"></div>
+    </section>
+
     <section id="timeline" class="chat-timeline" aria-live="polite">
       <div class="empty-state">Loading your Tripwire session…</div>
     </section>
+
+    <footer class="shopper-footer">
+      <a id="new-request-link" href="../buy">Start a new request</a>
+      <div id="footer-meta">Tripwire</div>
+    </footer>
   </main>
+
+  <aside id="sticky-bar" class="sticky-action-bar" hidden aria-live="assertive"></aside>
 
   <script src="../assets/shopper.js" defer></script>
 </body>

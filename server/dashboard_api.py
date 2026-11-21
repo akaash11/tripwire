@@ -241,6 +241,11 @@ async def asset_shopper_js():
     return FileResponse(DASHBOARD_DIR / "shopper.js", media_type="application/javascript")
 
 
+@router.get("/assets/buy.js")
+async def asset_buy_js():
+    return FileResponse(DASHBOARD_DIR / "buy.js", media_type="application/javascript")
+
+
 @router.get("/r/{token}")
 async def shopper_page(token: str):
     r = _find_request_by_token(token)
