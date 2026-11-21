@@ -12,6 +12,12 @@ import sys
 import time
 from pathlib import Path
 
+import sys
+from pathlib import Path as _Path
+_ROOT = _Path(__file__).resolve().parents[1]
+if str(_ROOT) not in sys.path:
+    sys.path.insert(0, str(_ROOT))
+
 from common import load_env, log_usage
 
 ROOT = Path(__file__).resolve().parents[1]
