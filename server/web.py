@@ -161,7 +161,6 @@ a{{color:inherit;word-break:break-all}}.muted{{color:var(--muted)}}ol{{text-alig
 <div class="card"><h2>1 · Install the Shortcut</h2><div class="qr">{_qr_svg(buy)}</div>
 <ol><li>Scan with the iPhone Camera, tap the link.</li><li>Safari downloads it, Shortcuts opens: tap <b>Add Shortcut</b>.</li>
 <li>Run <b>Tripwire Buy</b> (or "Hey Siri, Tripwire Buy"): say what you want, take a photo.</li></ol>
-<p>Want <b>"Hey Siri, check Shopify"</b>? Also add <a href="{escape(base)}/shortcuts/check">Check Shopify</a> (same flow).</p>
 <p class="muted"><a href="{escape(buy)}">{escape(buy)}</a></p></div>
 <div class="card"><h2>2 · Or no install</h2><div class="qr">{_qr_svg(web)}</div>
 <p>Opens the Tripwire page in Safari: photo, voice or text.</p><p class="muted"><a href="{escape(web)}">{escape(web)}</a></p></div>
