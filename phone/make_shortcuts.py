@@ -1,7 +1,7 @@
 """Generate the two iPhone Shortcuts that talk to the Tripwire server.
 
   Tripwire Buy      record voice -> take photo -> POST /request (multipart) -> show the reply
-  Tripwire Approve  GET /pending -> Approve / Block -> POST /approve (JSON) -> show the reply
+  Tripwire Approve  GET /pending -> Approve / Block -> POST /approve (JSON) -> show the reply -> open the Shop checkout
 
 Usage (tailnet set for the owner's phone; public set for anyone, via Funnel on :10000):
   python3 phone/make_shortcuts.py https://<machine>.<tailnet>.ts.net:10000/tripwire phone/build/public
@@ -88,8 +88,19 @@ def buy(base: str) -> list[dict]:
     ]
 
 
+def if_has_value(ref: dict, body: list[dict]) -> list[dict]:
+    """If <ref> has any value: body. End If."""
+    gid = new_id()
+    return [
+        action("conditional", GroupingIdentifier=gid, WFControlFlowMode=0, WFCondition=100,
+               WFInput={"Type": "Variable", "Variable": variable(ref)}),
+        *body,
+        action("conditional", GroupingIdentifier=gid, WFControlFlowMode=2),
+    ]
+
+
 def approve(base: str) -> list[dict]:
-    get, cart, summ, reason, lst, pick, post, speak = (new_id() for _ in range(8))
+    get, cart, summ, reason, lst, pick, post, speak, url = (new_id() for _ in range(9))
     return [
         action("downloadurl", get, WFURL=f"{base}/pending", WFHTTPMethod="GET"),
         get_key(get, "Contents of URL", "cart_id", cart),
@@ -106,6 +117,10 @@ def approve(base: str) -> list[dict]:
                ])),
         get_key(post, "Contents of URL", "speak", speak),
         action("showresult", Text=token_text(output_ref(speak, "Dictionary Value"))),
+        get_key(post, "Contents of URL", "url", url),
+        # Approved: open the real Shop checkout so the shopper can pay with Shop Pay (link kept exactly as returned).
+        *if_has_value(output_ref(url, "Dictionary Value"),
+                      [action("openurl", WFInput=token_text(output_ref(url, "Dictionary Value")))]),
     ]
 
 

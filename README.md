@@ -8,6 +8,7 @@ A shopping agent shops the real Shopify catalog, and checkout only goes through 
 - **Event rules and sponsor requirements: [`docs/EVENT_REQUIREMENTS.md`](docs/EVENT_REQUIREMENTS.md)**
 - Architecture: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
 - Team plan and task split: [`docs/TEAM_PLAN.md`](docs/TEAM_PLAN.md)
+- **What works now and what is next: [`docs/STATUS.md`](docs/STATUS.md)**
 
 ## Layout
 | Path | Owner | What |

@@ -24,6 +24,7 @@ app = FastAPI(title="Tripwire")
 
 # In-memory state for the POC. Replace with a small JSON/SQLite store if needed.
 STATE: dict = {"requests": [], "pending": None, "orders": [], "events": []}
+SESSIONS: dict = {}  # request_id -> agent.tools.ShopSession (holds the secret continue_url; never serialized)
 
 
 def event(kind: str, **data) -> None:
@@ -89,7 +90,34 @@ async def process_request(req_id: str) -> None:
     STATE["current_contract"] = contract["contract_id"]
     event("contract_ready", request_id=req_id, contract_id=contract["contract_id"],
           summary=contract.get("summary"), compiled_by=contract.get("compiled_by"))
-    # TODO(akaash): agent.run(contract) -> cart; guard.check(contract, cart, products) -> verdict
+
+    from agent.run import run as run_agent
+    from agent.tools import ShopSession
+
+    def emit(kind, **d):
+        event(kind, request_id=req_id, **d)
+
+    session = ShopSession(contract, on_event=emit)
+    SESSIONS[req_id] = session
+    r["status"] = "shopping"
+    try:
+        await asyncio.to_thread(run_agent, contract, session)
+    except Exception as e:  # noqa: BLE001
+        r["status"] = "agent_failed"
+        event("agent_failed", request_id=req_id, error=f"{type(e).__name__}: {e}"[:500])
+        return
+    v = session.verdict
+    if v is None:
+        r["status"] = "no_checkout"
+        return
+    r["status"] = v["verdict"]
+    if session.pending_cart:
+        c = session.pending_cart
+        STATE["pending"] = {"cart_id": c["cart_id"], "request_id": req_id, "verdict": v["verdict"],
+                            "summary": f"Agent wants: {c['summary']}. You asked: {contract.get('summary')}",
+                            "reason": "; ".join(v.get("xray", {}).get("reasons", []))[:300]}
+    if session.continue_url:
+        r["pay_ready"] = True
 
 
 @app.post("/request")
@@ -132,15 +160,30 @@ async def approve(body: dict):
         return {"ok": False, "speak": "That cart is no longer pending."}
     event("human_decision", cart_id=p["cart_id"], decision=decision)
     STATE["pending"] = None
-    # TODO(akaash): on approve -> mock checkout + signed receipt into STATE["orders"]
-    return {"ok": True, "speak": f"Recorded: {decision}."}
+    session = SESSIONS.get(p["request_id"])
+    if decision != "approve" or session is None:
+        return {"ok": True, "speak": "Blocked. Nothing was bought.", "url": ""}
+    try:
+        view = await asyncio.to_thread(session.open_checkout, session.carts[p["cart_id"]])
+    except Exception as e:  # noqa: BLE001
+        event("checkout_failed", cart_id=p["cart_id"], error=str(e)[:300])
+        return {"ok": False, "speak": "Shop checkout failed. Try again.", "url": ""}
+    total = next((t for t in view["totals"] if t["type"] == "total"), {})
+    STATE["orders"].append({"cart_id": p["cart_id"], "request_id": p["request_id"], "ts": time.time(),
+                            "checkout": view, "status": "awaiting_payment"})
+    amount = f"${total.get('amount', 0)/100:.2f}" if total.get("amount") is not None else ""
+    return {"ok": True, "url": session.continue_url or "",
+            "speak": f"Approved. Opening the Shop checkout for {amount}. Pay there with Shop Pay."}
 
 
 @app.get("/api/state")
 async def api_state(request: Request):
     if not is_local(request):
         return JSONResponse({"error": "dashboard is local only"}, status_code=403)
-    return STATE
+    sessions = {rid: {"verdict": s.verdict, "checkout": s.checkout, "carts": s.carts,
+                      "agent_summary": getattr(s, "agent_summary", None), "pay_ready": bool(s.continue_url)}
+                for rid, s in SESSIONS.items()}
+    return {**STATE, "sessions": sessions}
 
 
 @app.get("/shortcuts/{name}")
