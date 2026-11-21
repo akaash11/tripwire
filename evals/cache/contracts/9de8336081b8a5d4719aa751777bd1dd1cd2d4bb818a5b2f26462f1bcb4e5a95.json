@@ -1,0 +1,82 @@
+{
+  "request": "a 10-foot 100W right-angle USB-C charging cable under 20 dollars, must be returnable",
+  "contract": {
+    "contract_id": "ic_e6ed91a635c2",
+    "created_at": "2026-11-21T17:51:37+00:00",
+    "expires_at": "2026-11-21T18:21:37+00:00",
+    "nonce": "43c1113221f3f8180453fd5c",
+    "user_request": "a 10-foot 100W right-angle USB-C charging cable under 20 dollars, must be returnable",
+    "photo_observations": [],
+    "item": "10-foot 100W right-angle USB-C charging cable",
+    "must": [
+      {
+        "id": "m1",
+        "clause": "length is 10 feet"
+      },
+      {
+        "id": "m2",
+        "clause": "supports 100W charging"
+      },
+      {
+        "id": "m3",
+        "clause": "has a right-angle connector"
+      },
+      {
+        "id": "m4",
+        "clause": "USB-C charging cable"
+      },
+      {
+        "id": "m5",
+        "clause": "returnable"
+      }
+    ],
+    "must_not": [
+      {
+        "id": "n1",
+        "clause": "shorter than 10 feet"
+      },
+      {
+        "id": "n2",
+        "clause": "rated below 100W"
+      },
+      {
+        "id": "n3",
+        "clause": "straight-only connectors"
+      },
+      {
+        "id": "n4",
+        "clause": "non-returnable"
+      }
+    ],
+    "max_total_cents": 2000,
+    "quantity": 1,
+    "returns": "required",
+    "search_query": "10ft 100W right angle USB-C charging cable",
+    "summary": "You want a 10-foot 100W right-angle USB-C charging cable under 20 dollars that is returnable.",
+    "assumptions": [
+      "Assumed USB-C to USB-C connectors since 100W charging requires USB-C Power Delivery.",
+      "Assumed quantity of 1."
+    ],
+    "merchant": {
+      "policy": "any_verified",
+      "allow": [],
+      "deny": []
+    },
+    "currency": "USD",
+    "ships_to": "US",
+    "compiled_by": "gemini-4-neon",
+    "compile_attempts": [
+      {
+        "model": "gemini-4-neon",
+        "ok": true,
+        "latency_ms": 9622
+      }
+    ],
+    "signature": {
+      "alg": "Ed25519",
+      "key_id": "tripwire-demo-1",
+      "sig": "oS30Sf8QsChGfhEnEBRfiOyAoRwlqLrU3VfSujJQUcIIExy+nu/aJCkG7Co6rwAafvIZV8bgqnmuVcUZl9tTAg=="
+    }
+  },
+  "compiled_by": "gemini-4-neon"
+}

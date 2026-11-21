@@ -311,7 +311,7 @@ def _markdown(result: dict) -> str:
         "## Stability",
         "",
         f"Both runs used the same cached compiled contracts (`{cache['dir']}`, key = `{cache['key']}`; "
-        f"{cache['hits']} cache hits, {cache['compiled']} compiled this session). "
+        f"{cache['hits']} prior cache hits, {cache['compiled']} compiled this session, then reused in memory for every run). "
         + cache.get("note", ""),
         "",
         f"Tripwire verdicts agreed on **{stab.get('agree', 0)}/{stab.get('n', 0)}** cases "

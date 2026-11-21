@@ -1,0 +1,70 @@
+{
+  "request": "a 100W USB-C cable under 20 dollars, returnable",
+  "contract": {
+    "contract_id": "ic_3cd84d0dcb96",
+    "created_at": "2026-11-21T17:51:53+00:00",
+    "expires_at": "2026-11-21T18:21:53+00:00",
+    "nonce": "714f7b1c351093a9f531a365",
+    "user_request": "a 100W USB-C cable under 20 dollars, returnable",
+    "photo_observations": [],
+    "item": "100W USB-C cable",
+    "must": [
+      {
+        "id": "m1",
+        "clause": "USB-C cable"
+      },
+      {
+        "id": "m2",
+        "clause": "supports 100W charging"
+      },
+      {
+        "id": "m3",
+        "clause": "returnable"
+      }
+    ],
+    "must_not": [
+      {
+        "id": "n1",
+        "clause": "charge-limited below 100W"
+      },
+      {
+        "id": "n2",
+        "clause": "non-returnable"
+      },
+      {
+        "id": "n3",
+        "clause": "incompatible connector"
+      }
+    ],
+    "max_total_cents": 2000,
+    "quantity": 1,
+    "returns": "required",
+    "search_query": "100W USB-C cable",
+    "summary": "You want a returnable 100W USB-C cable for under $20.",
+    "assumptions": [
+      "Quantity is 1",
+      "No photo was provided"
+    ],
+    "merchant": {
+      "policy": "any_verified",
+      "allow": [],
+      "deny": []
+    },
+    "currency": "USD",
+    "ships_to": "US",
+    "compiled_by": "gemini-4-neon",
+    "compile_attempts": [
+      {
+        "model": "gemini-4-neon",
+        "ok": true,
+        "latency_ms": 5560
+      }
+    ],
+    "signature": {
+      "alg": "Ed25519",
+      "key_id": "tripwire-demo-1",
+      "sig": "w+v452nGDe6gizvFUgC1F+/6BV96HcRIlch/7OJYu8r+gl1dyUnhD5eNbGXa7c7UI5ZKIn+0Bw7h/0YMcgdqDg=="
+    }
+  },
+  "compiled_by": "gemini-4-neon"
+}

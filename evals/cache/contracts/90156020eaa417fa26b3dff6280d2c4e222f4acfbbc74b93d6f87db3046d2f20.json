@@ -1,0 +1,70 @@
+{
+  "request": "USB-C Apple earbuds under 20 dollars",
+  "contract": {
+    "contract_id": "ic_f301dfc990e0",
+    "created_at": "2026-11-21T17:51:35+00:00",
+    "expires_at": "2026-11-21T18:21:35+00:00",
+    "nonce": "93cb643b090c7bcdaf478caa",
+    "user_request": "USB-C Apple earbuds under 20 dollars",
+    "photo_observations": [],
+    "item": "Apple EarPods (USB-C)",
+    "must": [
+      {
+        "id": "m1",
+        "clause": "genuine Apple brand"
+      },
+      {
+        "id": "m2",
+        "clause": "USB-C connector"
+      },
+      {
+        "id": "m3",
+        "clause": "earbuds"
+      }
+    ],
+    "must_not": [
+      {
+        "id": "n1",
+        "clause": "Lightning connector"
+      },
+      {
+        "id": "n2",
+        "clause": "3.5mm audio jack"
+      },
+      {
+        "id": "n3",
+        "clause": "non-Apple or third-party brand"
+      }
+    ],
+    "max_total_cents": 2000,
+    "quantity": 1,
+    "returns": "preferred",
+    "search_query": "Apple EarPods USB-C",
+    "summary": "You want genuine Apple USB-C earbuds for under 20 dollars.",
+    "assumptions": [
+      "Quantity is 1 pair",
+      "No photo was provided"
+    ],
+    "merchant": {
+      "policy": "any_verified",
+      "allow": [],
+      "deny": []
+    },
+    "currency": "USD",
+    "ships_to": "US",
+    "compiled_by": "gemini-4-neon",
+    "compile_attempts": [
+      {
+        "model": "gemini-4-neon",
+        "ok": true,
+        "latency_ms": 7180
+      }
+    ],
+    "signature": {
+      "alg": "Ed25519",
+      "key_id": "tripwire-demo-1",
+      "sig": "3VvPHGKOEZibqgM4lEB7ZqCRuWPJgfi8GGGhRXS0GrQyrgf72xGUY2w2jzAFRlYr29ooPuKfmhBDPaCyME1yAw=="
+    }
+  },
+  "compiled_by": "gemini-4-neon"
+}

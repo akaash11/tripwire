@@ -1,0 +1,74 @@
+{
+  "request": "wired USB-C earbuds under 20 dollars with free returns",
+  "contract": {
+    "contract_id": "ic_5fc2b6c12e0a",
+    "created_at": "2026-11-21T17:52:55+00:00",
+    "expires_at": "2026-11-21T18:22:55+00:00",
+    "nonce": "b553e4da13b61c8a233ac205",
+    "user_request": "wired USB-C earbuds under 20 dollars with free returns",
+    "photo_observations": [],
+    "item": "wired USB-C earbuds",
+    "must": [
+      {
+        "id": "m1",
+        "clause": "wired connection"
+      },
+      {
+        "id": "m2",
+        "clause": "USB-C connector"
+      },
+      {
+        "id": "m3",
+        "clause": "in-ear earbuds"
+      },
+      {
+        "id": "m4",
+        "clause": "free returns"
+      }
+    ],
+    "must_not": [
+      {
+        "id": "n1",
+        "clause": "wireless or Bluetooth-only"
+      },
+      {
+        "id": "n2",
+        "clause": "3.5mm jack or Lightning connector"
+      },
+      {
+        "id": "n3",
+        "clause": "over-ear or on-ear headphones"
+      }
+    ],
+    "max_total_cents": 2000,
+    "quantity": 1,
+    "returns": "required",
+    "search_query": "wired USB-C earbuds",
+    "summary": "You want wired USB-C earbuds for under $20 with free returns.",
+    "assumptions": [
+      "No photo was provided.",
+      "Quantity is 1 pair of earbuds."
+    ],
+    "merchant": {
+      "policy": "any_verified",
+      "allow": [],
+      "deny": []
+    },
+    "currency": "USD",
+    "ships_to": "US",
+    "compiled_by": "gemini-4-neon",
+    "compile_attempts": [
+      {
+        "model": "gemini-4-neon",
+        "ok": true,
+        "latency_ms": 11684
+      }
+    ],
+    "signature": {
+      "alg": "Ed25519",
+      "key_id": "tripwire-demo-1",
+      "sig": "sf2teocn0uxcx7zlmw5KviTnm9K4l5JzvPrrLAEFCWENhnsa0zVUAga3EDigmVxcKgCtUX9rztboyAqbjZpcAQ=="
+    }
+  },
+  "compiled_by": "gemini-4-neon"
+}

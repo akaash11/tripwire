@@ -1,0 +1,62 @@
+{
+  "request": "a cute phone case under 20 dollars",
+  "contract": {
+    "contract_id": "ic_a764a254b404",
+    "created_at": "2026-11-21T17:52:36+00:00",
+    "expires_at": "2026-11-21T18:22:36+00:00",
+    "nonce": "fdd62170d2099a9d18b00d99",
+    "user_request": "a cute phone case under 20 dollars",
+    "photo_observations": [],
+    "item": "phone case",
+    "must": [
+      {
+        "id": "m1",
+        "clause": "cute design"
+      },
+      {
+        "id": "m2",
+        "clause": "total price under $20"
+      }
+    ],
+    "must_not": [
+      {
+        "id": "n1",
+        "clause": "plain or purely utilitarian design"
+      },
+      {
+        "id": "n2",
+        "clause": "total price of $20 or more"
+      }
+    ],
+    "max_total_cents": 2000,
+    "quantity": 1,
+    "returns": "preferred",
+    "search_query": "cute phone case",
+    "summary": "You want a cute phone case for under 20 dollars.",
+    "assumptions": [
+      "No photo was provided, so the specific phone model is unknown.",
+      "Quantity is assumed to be 1."
+    ],
+    "merchant": {
+      "policy": "any_verified",
+      "allow": [],
+      "deny": []
+    },
+    "currency": "USD",
+    "ships_to": "US",
+    "compiled_by": "gemini-4-neon",
+    "compile_attempts": [
+      {
+        "model": "gemini-4-neon",
+        "ok": true,
+        "latency_ms": 7345
+      }
+    ],
+    "signature": {
+      "alg": "Ed25519",
+      "key_id": "tripwire-demo-1",
+      "sig": "LbJBuUlblY74jNWc8OW7+VnIFtoMBUKsyV3cZ1M2X2wWZ2krRuVb3240ZVf3cgUpDTyT9Ea+LPCByb3AHLdSAw=="
+    }
+  },
+  "compiled_by": "gemini-4-neon"
+}
