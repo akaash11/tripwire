@@ -1,7 +1,8 @@
 """Generate the two iPhone Shortcuts that talk to the Tripwire server.
 
-  Tripwire Buy      record voice -> take photo -> POST /request (multipart) -> show the reply
-  Tripwire Approve  GET /pending -> Approve / Block -> POST /approve (JSON) -> show the reply -> open the Shop checkout
+  Tripwire Buy      record voice -> take photo -> POST /request (multipart) -> open /t/{token} in Safari
+                    (live progress -> Approve -> merchant's Shop checkout with address + payment)
+  Tripwire Approve  (optional, owner fallback; shows the LATEST pending cart) GET /pending -> Approve / Block -> POST /approve (JSON) -> show the reply -> open the Shop checkout
 
 Usage (tailnet set for the owner's phone; public set for anyone, via Funnel on :10000):
   python3 phone/make_shortcuts.py https://<machine>.<tailnet>.ts.net:10000/tripwire phone/build/public
@@ -20,6 +21,8 @@ import sys
 import uuid
 
 OUT = pathlib.Path(__file__).parent / "build"
+VERSION = "1.3"  # bump on every rebuild; Buy sends it as form field `client`, the page shows it
+# 1.0 first build · 1.1 file upload fix · 1.2 Buy opens /t/{token} · 1.3 version field, delivered-price quote
 
 
 def new_id() -> str:
@@ -51,8 +54,9 @@ def variable(ref: dict) -> dict:
 
 
 def file_param(ref: dict) -> dict:
-    # Form-field files must use this wrapper or `shortcuts sign` throws.
-    return {"Value": ref, "WFSerializationType": "WFTokenAttachmentParameterState"}
+    # Form-field files need BOTH layers: a WFTextTokenAttachment inside WFTokenAttachmentParameterState.
+    # Without the outer layer `shortcuts sign` throws; without the inner one iOS sends the form with NO files.
+    return {"Value": variable(ref), "WFSerializationType": "WFTokenAttachmentParameterState"}
 
 
 def fields(items: list[tuple[str, int, dict]]) -> dict:
@@ -74,17 +78,36 @@ def get_key(src_uid: str, src_name: str, key: str, uid: str) -> dict:
 
 
 def buy(base: str) -> list[dict]:
-    rec, cam, post, speak = new_id(), new_id(), new_id(), new_id()
+    rec, cam, post, speak, tok = (new_id() for _ in range(5))
     return [
+        action("comment", WFCommentActionText=f"Tripwire Buy v{VERSION} ({base})"),
         action("recordaudio", rec),
         action("takephoto", cam, WFCameraCaptureShowPreview=True),
         action("downloadurl", post, WFURL=f"{base}/request", WFHTTPMethod="POST", WFHTTPBodyType="Form",
                WFFormValues=fields([
                    ("audio", 5, file_param(output_ref(rec, "Recorded Audio"))),
                    ("photo", 5, file_param(output_ref(cam, "Photo"))),
+                   ("client", 0, text(f"Tripwire Buy {VERSION}")),
                ])),
         get_key(post, "Contents of URL", "speak", speak),
-        action("showresult", Text=token_text(output_ref(speak, "Dictionary Value"))),
+        get_key(post, "Contents of URL", "token", tok),
+        # Got a token: open the live page in Safari (progress -> Approve -> the merchant's Shop checkout, where the
+        # shopper sees address + payment and pays). No token: show why (empty upload, busy, budget).
+        *if_else(output_ref(tok, "Dictionary Value"),
+                 [action("openurl", WFInput=token_text(f"{base}/t/", output_ref(tok, "Dictionary Value")))],
+                 [action("showresult", Text=token_text(output_ref(speak, "Dictionary Value")))]),
+    ]
+
+
+def if_else(ref: dict, then: list[dict], otherwise: list[dict]) -> list[dict]:
+    gid = new_id()
+    return [
+        action("conditional", GroupingIdentifier=gid, WFControlFlowMode=0, WFCondition=100,
+               WFInput={"Type": "Variable", "Variable": variable(ref)}),
+        *then,
+        action("conditional", GroupingIdentifier=gid, WFControlFlowMode=1),
+        *otherwise,
+        action("conditional", GroupingIdentifier=gid, WFControlFlowMode=2),
     ]
 
 
@@ -102,6 +125,7 @@ def if_has_value(ref: dict, body: list[dict]) -> list[dict]:
 def approve(base: str) -> list[dict]:
     get, cart, summ, reason, lst, pick, post, speak, url = (new_id() for _ in range(9))
     return [
+        action("comment", WFCommentActionText=f"Tripwire Approve v{VERSION} ({base})"),
         action("downloadurl", get, WFURL=f"{base}/pending", WFHTTPMethod="GET"),
         get_key(get, "Contents of URL", "cart_id", cart),
         get_key(get, "Contents of URL", "summary", summ),

@@ -6,7 +6,11 @@ Update this file when you finish something. Real results only; mark anything not
 ## Working now (verified end to end)
 | Piece | File | Verified |
 |---|---|---|
-| Phone → server | `server/app.py`, `phone/make_shortcuts.py` | `/request` multipart voice + photo, replies at once, works in background |
+| Phone → server | `server/app.py`, `phone/make_shortcuts.py` | `/request` multipart voice + photo, replies at once, works in background. **Fixed:** the Buy shortcut sent the form with NO files (file fields need a `WFTextTokenAttachment` inside `WFTokenAttachmentParameterState`); `/request` now answers 400 + a spoken message if nothing arrives. Every request gets an unguessable `token` in the reply |
+| Buy shortcut = whole flow | `phone/make_shortcuts.py`, `server/web.py` `/t/{token}` | Buy records voice + photo, POSTs `/request`, then opens `/t/{token}` in Safari: live progress → Approve → the merchant's real Shop checkout (`continue_url`, shop.app) where the shopper enters address + payment and pays real money. Approve shortcut is now an optional owner fallback (it shows the LATEST pending cart, which caused the "always the 3m wire" confusion). Verified over Funnel :10000: typed request → JuicEBitz 100W braided $10.00 → approve → real checkout on shop.app with refund/shipping policy links |
+| Delivery + real price check | `agent/tools.py` `quote()`, `agent/shop_mcp.py` | Before asking the human, Tripwire creates the merchant's real checkout (no order) with a coarse destination (`SHIP_TO_*` in `.env`, default New York 10001, never a street or name). Shop then returns real shipping + tax, and `delivery_no_delivery_available_for_merchandise_line` for stores that can't deliver. Rejected: that code, no shipping quote at all (local-only stores), or delivered total over budget. The agent gets `try_another_seller` + other sellers and retries (max 4 quotes). The approved checkout is the same one (Shop: never recreate). Verified: Celsius request skipped Grill House, BevMo! (can't deliver) and picked Stetson University Bookstore, $13.59 delivered; cable → UGREEN US $18.48 delivered (was showing $12.99). Found: a $10 JuicEBitz cable is $57.45 delivered (shipping $41 + duty) |
+| Versions | `phone/make_shortcuts.py` `VERSION`, `server/web.py` `VERSION` | Shortcut v1.3: first action is a comment `Tripwire Buy v1.3 (<url>)`; Buy sends `client=Tripwire Buy 1.3`, logged per request and shown at the bottom of the page. Bump both on every rebuild |
+| Phone web page (no install) | `server/web.py` | `GET /buy`: photo + hold-to-talk + text → live status (`GET /w/{token}`, no pay link in JSON) → Approve/Block (`POST /w/{token}/decide`, scoped to that token's cart) → opens the real Shop checkout. Verified over the tailnet: Neon contract, UGREEN 100W $12.99, real checkout $13.77 on shop.app; a wrong token is refused |
 | Contract | `agent/contract.py` | Neon (`thinking_level: low`) builds a signed contract from voice + photo in ~11s; Flash-Lite fallback |
 | Signing | `common/signing.py` | Ed25519; tampering any field fails `verify()`; public key at `GET /pubkey` |
 | Shop MCP | `agent/shop_mcp.py` | Live `search_catalog`; real `create_checkout` (no order placed) returns totals, `messages`, `links` incl. refund policy, `continue_url` on shop.app |
@@ -14,20 +18,29 @@ Update this file when you finish something. Real results only; mark anything not
 | Approval → real checkout | `server/app.py` `/pending`, `/approve` | Approve creates the real Shop checkout and returns `url` (shop.app) + "Opening the Shop checkout for $14.99" |
 | Phone approve | Tripwire Approve shortcut | Shows agent's pick vs your request → Approve/Block → opens the Shop checkout link. Rebuilt after a bad-URL bug (zsh passed URL + folder as one arg → phone hit `POST /` → 404); generator now refuses bad URLs |
 | Decisions API helper | `guard/decisions.py` | `ask()` + `clause_questions()`: 4 questions in ~0.6s (needs v1beta). Planted-instruction listing scored injection only 0.28, so escalate above 0.1 |
-| Hardening | `server/app.py` | Dashboard/state and typed requests are local-only (tailnet + forwarded requests refused); 10 req/min; 15 MB upload cap |
+| Shopper chat page | `dashboard/shopper.{html,js}`, `dashboard/styles.css`, `server/dashboard_api.py` | Public `GET /r/{token}`, `/r/{token}/events`, `/r/{token}/photo` (reuses request `token`, `view_url` added to `/request` & `/request_text`). Mobile-first live timeline (2s poll), light/dark mode, DOM-safe (`textContent` only). Verified live with `POST /request_text` ("100W USB-C cable under 20 dollars, returnable") → Neon contract → Baseus $9.99 / $18.40 delivered → `200 OK` with `X-Forwarded-For`; zero `continue_url`, checkout id, signature, or file paths in JSON |
+| Admin control panel | `dashboard/admin.{html,js}`, `server/dashboard_api.py`, `server/config.py` | Local-only `GET /admin` + `/api/admin/*` (6 tabs: Live with X-ray + Decisions bars + Approve/Block + Tripwire ON/OFF switch, Orders with live Shop MCP `get_checkout` Refresh status, Usage from `logs/usage.jsonl` + RPM & daily token budget, Models with runtime `.env` persistence, API keys write-only `chmod 600` + live Test, Red-team reader for `evals/out/results.json`). Verified live: all `/admin` & `/api/admin/*` return `403` with `X-Forwarded-For`/`Tailscale-*`; local `200`; `/api/admin/approve` omits `continue_url`; live `get_checkout` refresh `200` (`incomplete`); live `GEMINI_API_KEY` Decisions test `OK` (`823ms`, `noul=0.98`); daily token budget `429 "budget reached"` & `.env` `0600` verified in FastAPI TestClient. **NOT RUN:** live paid `completed`+`order` checkout transition, Anthropic/xAI key live tests (keys unset), red-team UI against a real populated `evals/out/results.json` (file not generated yet) |
+| Hardening | `server/app.py` | Dashboard/state, `/admin`, `/api/admin/*` and typed requests are local-only (tailnet + forwarded requests refused with 403); configurable `RATE_LIMIT_PER_MIN` & `DAILY_TOKEN_BUDGET`; 15 MB upload cap |
 
 Run: `.venv/bin/uvicorn server.app:app --host 127.0.0.1 --port 8790` · typed test:
 `curl -X POST localhost:8790/request_text -H 'content-type: application/json' -d '{"text":"..."}'` then `GET /pending`, `POST /approve`.
 CLI: `.venv/bin/python -m agent.run "a 100W USB-C cable under 20 dollars, returnable"`.
 
 ## Not done yet (priority order)
+0. **Ship-to must come from the shopper, not a fixed city (Akaash, 2026-11-21).** Today quotes use `SHIP_TO_*` (New York
+   10001) because everyone tests at the venue. Real fix: Shop MCP `get_account` returns the signed-in shopper's saved
+   `addresses[]` + `preferred_address_id`; its own instructions say to copy one entry unchanged into the checkout's
+   `fulfillment.destinations` and select its id. That needs the shopper signed in to Shop (signed-out `get_account`
+   returns no JSON). Fallbacks, in order: the phone's coarse location (Shortcut "Get Current Location" → ZIP, sent as a
+   form field) → the `/buy` page asking for a ZIP → `SHIP_TO_*`. Never store a street address server-side beyond the
+   one checkout. Shop MCP now also lists `search_locations`, `create_spend_permission` / `create_spend_request`
+   (delegated payment, see PITCH.md point 2) and `update_checkout`.
 1. **Guard (Tanu): `guard/check()` is still a stub that always returns `ask_human`.** Her task list: [`TANU.md`](TANU.md). Policy backstop → Decision 1 per clause (helper ready) → canary → Neon checker. Keep the verdict shape.
-2. **Web pages (Antigravity):** shopper chat page `/r/{token}` + local-only `/admin` (Live, Orders, Usage, Models, API keys, Red-team). Prompt: [`prompts/ANTIGRAVITY_DASHBOARD.md`](prompts/ANTIGRAVITY_DASHBOARD.md).
-3. **Re-check the real checkout** before handing over the link: checkout total ≤ `max_total_cents`, payee unchanged, warnings shown, refund policy link present when `returns: required`.
-4. **Per-user sessions** so judges don't share one pending cart (key requests by a device id the Shortcut sends).
-5. **Public install** via Tailscale Funnel (Akaash must enable it in the admin console), then `/shortcuts/buy` and `/shortcuts/approve` work for anyone.
-7. **Red-team harness** (`evals/`): Carbon attacks + outside examples; baselines (no guard, rules-only) vs Tripwire; list failures.
-8. After payment: poll `get_checkout` to show `completed` + `order` (only that confirms a purchase).
+2. **Re-check the real checkout** before handing over the link: checkout total ≤ `max_total_cents`, payee unchanged, warnings shown, refund policy link present when `returns: required`.
+3. **Per-user sessions** so judges don't share one pending cart (key requests by a device id the Shortcut sends).
+4. **Public install** via Tailscale Funnel (Akaash must enable it in the admin console), then `/shortcuts/buy` and `/shortcuts/approve` work for anyone.
+5. **Red-team harness** (`evals/`): Carbon attacks + outside examples; baselines (no guard, rules-only) vs Tripwire; list failures (`evals/out/results.json` feeds the Admin Red-team tab).
+6. End-to-end live payment test: pay one real checkout and verify Orders "Refresh status" (`get_checkout`) transitions to `completed` + `order`.
 
 Rules to keep: never log or show the checkout id / `continue_url` except to the shopper; keep Shop links exactly as returned;
 never call `complete_checkout`; no caching of Shop results; secrets only in `.env`.

@@ -60,21 +60,41 @@ def get_product(product_id: str) -> dict:
     return call("get_product", {"id": product_id})
 
 
-def create_checkout(shop_domain: str, variant_id: str, quantity: int = 1, country: str = "US") -> dict:
-    return call("create_checkout", {
-        "shop": shop_domain,
-        "checkout": {"line_items": [{"item": {"id": variant_id}, "quantity": quantity}],
-                     "context": {"address_country": country}},
-        "meta": {"idempotency-key": str(uuid.uuid4())},
-    })
+def create_checkout(shop_domain: str, variant_id: str, quantity: int = 1, country: str = "US",
+                    destination: dict | None = None) -> dict:
+    """destination: coarse locality only (country, region, city, postal code; never a street or name). With it, Shop
+    returns real shipping + tax, and `delivery_no_delivery_available_for_merchandise_line` if the store can't deliver."""
+    checkout: dict = {"line_items": [{"item": {"id": variant_id}, "quantity": quantity}],
+                      "context": {"address_country": country}}
+    if destination:
+        checkout["context"] = {k: v for k, v in {"address_country": destination.get("address_country", country),
+                                                 "address_region": destination.get("address_region"),
+                                                 "postal_code": destination.get("postal_code")}.items() if v}
+        checkout["fulfillment"] = {"methods": [{"type": "shipping",
+                                                "destinations": [{"type": "shipping_address", **destination}]}]}
+    return call("create_checkout", {"shop": shop_domain, "checkout": checkout,
+                                    "meta": {"idempotency-key": str(uuid.uuid4())}})
+
+
+NO_DELIVERY = "delivery_no_delivery_available_for_merchandise_line"
 
 
 def get_checkout(shop_domain: str, checkout_id: str) -> dict:
     return call("get_checkout", {"shop": shop_domain, "id": checkout_id})
 
 
+def refresh_checkout_view(shop_domain: str, checkout_id: str) -> dict:
+    """Poll Shop MCP get_checkout and return a secret-free view (never returns id or continue_url)."""
+    return checkout_view(get_checkout(shop_domain, checkout_id))
+
+
 def checkout_view(c: dict) -> dict:
     """What we show the shopper (and store): no checkout id, continue_url kept separately."""
+    order = c.get("order")
+    order_view = None
+    if isinstance(order, dict):
+        order_view = {k: order.get(k) for k in ("id", "name", "order_number", "permalink_url", "status_url", "created_at")
+                      if order.get(k) is not None}
     return {
         "status": c.get("status"),
         "currency": c.get("currency"),
@@ -85,5 +105,6 @@ def checkout_view(c: dict) -> dict:
         "messages": [{"type": m.get("type"), "code": m.get("code"), "severity": m.get("severity"),
                       "content": m.get("content")} for m in c.get("messages", [])],
         "links": [{"type": l.get("type"), "url": l.get("url")} for l in c.get("links", [])],
+        "order": order_view,
         "expires_at": c.get("expires_at"),
     }
