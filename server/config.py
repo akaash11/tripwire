@@ -488,21 +488,55 @@ def get_redteam_results() -> dict:
         return {"available": False, "runner_available": runner_available, "error": f"Failed to parse results.json: {e}"}
 
     cases = raw.get("cases") or []
-    # Support explicit failures list or derive failures from cases (misses where attack succeeded with Tripwire on,
-    # or legit items incorrectly blocked).
+    arms_raw = raw.get("arms") or {}
+    # Normalize both the 3-arm schema (arms.no_guard / rules_only / tripwire) and legacy off / on / legit schema.
+    legit_raw = raw.get("legit") or {}
+    n_legit = raw.get("n_legit") if raw.get("n_legit") is not None else legit_raw.get("n", 0)
+
+    def _norm_arm(arm_key: str, legacy_key: str | None = None) -> dict | None:
+        a = arms_raw.get(arm_key)
+        if isinstance(a, dict):
+            return {
+                "attack_success": a.get("attack_success", 0),
+                "attack_rate": a.get("attack_rate", a.get("rate", 0.0)),
+                "false_positives": a.get("false_positives", 0),
+                "fp_rate": a.get("fp_rate", 0.0),
+            }
+        if legacy_key and isinstance(raw.get(legacy_key), dict):
+            la = raw[legacy_key]
+            fp = legit_raw.get("false_positives", 0) if arm_key == "tripwire" else None
+            fp_rate = (fp / n_legit) if (fp is not None and n_legit) else (0.0 if fp is not None else None)
+            return {
+                "attack_success": la.get("attack_success", 0),
+                "attack_rate": la.get("attack_rate", la.get("rate", 0.0)),
+                "false_positives": fp,
+                "fp_rate": fp_rate,
+            }
+        return None
+
+    arms = {
+        "no_guard": _norm_arm("no_guard", "off"),
+        "rules_only": _norm_arm("rules_only", "rules_only"),
+        "tripwire": _norm_arm("tripwire", "on"),
+    }
+
     failures = raw.get("failures")
     if failures is None:
         failures = []
         for c in cases:
-            on_res = str(c.get("on_result") or "").lower()
+            tw_res = str(c.get("tripwire") or c.get("on_result") or "").lower()
+            kind = str(c.get("kind") or "").lower()
             atype = str(c.get("attack_type") or "").lower()
-            is_legit = atype in ("legit", "benign", "none", "") or c.get("legit") is True
-            if is_legit and on_res in ("block", "blocked", "false_positive", "fp"):
-                failures.append({**c, "failure_kind": "false_positive"})
-            elif not is_legit and on_res in ("approve", "approved", "success", "bypassed", "attack_success"):
-                failures.append({**c, "failure_kind": "attack_bypass"})
+            is_legit = kind == "legit" or atype in ("legit", "benign", "none") or c.get("legit") is True
+            if is_legit and tw_res in ("block", "blocked", "false_positive", "fp"):
+                failures.append({"id": c.get("id", ""), "arm": "tripwire",
+                                 "what_happened": f"Legit purchase blocked ({tw_res})",
+                                 "why": c.get("attack_type") or "false positive"})
+            elif not is_legit and tw_res in ("approve", "approved", "success", "bypassed", "attack_success"):
+                failures.append({"id": c.get("id", ""), "arm": "tripwire",
+                                 "what_happened": f"Attack succeeded ({tw_res})",
+                                 "why": c.get("attack_type") or "bypass"})
 
-    rules_only = raw.get("rules_only") or (raw.get("baselines") or {}).get("rules_only")
     return {
         "available": True,
         "runner_available": runner_available,
@@ -511,10 +545,8 @@ def get_redteam_results() -> dict:
             "run_id": raw.get("run_id", ""),
             "generator_model": raw.get("generator_model", "gemini-4-carbon"),
             "n_attacks": raw.get("n_attacks", 0),
-            "off": raw.get("off"),
-            "rules_only": rules_only,
-            "on": raw.get("on"),
-            "legit": raw.get("legit"),
+            "n_legit": n_legit,
+            "arms": arms,
             "cases": cases,
             "failures": failures,
         },
