@@ -288,7 +288,7 @@ async def api_state(request: Request):
 async def shortcut_file(name: str):
     """Signed iPhone Shortcuts, for anyone with the link. Only the two known files are served."""
     from fastapi.responses import FileResponse
-    files = {"buy": "Tripwire Buy.shortcut", "approve": "Tripwire Approve.shortcut"}
+    files = {"buy": "Tripwire Buy.shortcut", "check": "Check Shopify.shortcut", "approve": "Tripwire Approve.shortcut"}
     if name not in files:
         return JSONResponse({"error": "unknown shortcut"}, status_code=404)
     path = ROOT / "phone" / "build" / "public" / files[name]

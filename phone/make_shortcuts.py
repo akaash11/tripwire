@@ -21,8 +21,8 @@ import sys
 import uuid
 
 OUT = pathlib.Path(__file__).parent / "build"
-VERSION = "1.4"  # bump on every rebuild; Buy sends it as form field `client`, the page shows it
-# 1.0 first build · 1.1 file upload fix · 1.2 Buy opens /t/{token} · 1.3 version field, delivered-price quote · 1.4 shopper can raise budget
+VERSION = "1.6"  # bump on every rebuild; Buy sends it as form field `client`, the page shows it
+# 1.0 first build · 1.1 file upload fix · 1.2 Buy opens /t/{token} · 1.3 version field, delivered-price quote · 1.4 shopper can raise budget · 1.6 'Check Shopify' Siri name
 
 
 def new_id() -> str:
@@ -77,17 +77,17 @@ def get_key(src_uid: str, src_name: str, key: str, uid: str) -> dict:
                   WFDictionaryKey=key, WFGetDictionaryValueType="Value")
 
 
-def buy(base: str) -> list[dict]:
+def buy(base: str, name: str = "Tripwire Buy") -> list[dict]:
     rec, cam, post, speak, tok = (new_id() for _ in range(5))
     return [
-        action("comment", WFCommentActionText=f"Tripwire Buy v{VERSION} ({base})"),
+        action("comment", WFCommentActionText=f"{name} v{VERSION} ({base})"),
         action("recordaudio", rec),
         action("takephoto", cam, WFCameraCaptureShowPreview=True),
         action("downloadurl", post, WFURL=f"{base}/request", WFHTTPMethod="POST", WFHTTPBodyType="Form",
                WFFormValues=fields([
                    ("audio", 5, file_param(output_ref(rec, "Recorded Audio"))),
                    ("photo", 5, file_param(output_ref(cam, "Photo"))),
-                   ("client", 0, text(f"Tripwire Buy {VERSION}")),
+                   ("client", 0, text(f"{name} {VERSION}")),
                ])),
         get_key(post, "Contents of URL", "speak", speak),
         get_key(post, "Contents of URL", "token", tok),
@@ -171,7 +171,9 @@ def main() -> None:
         sys.exit(f"bad base URL {base!r}: must be https://<host>[:port]/tripwire with no spaces")
     out = pathlib.Path(sys.argv[2]) if len(sys.argv) == 3 else OUT
     out.mkdir(parents=True, exist_ok=True)
+    # The shortcut's name is its Siri phrase: "Hey Siri, Check Shopify" runs the same flow as Tripwire Buy.
     for name, acts, color, glyph in (("Tripwire Buy", buy(base), 4282601983, 59511),
+                                      ("Check Shopify", buy(base, "Check Shopify"), 4282601983, 59511),
                                       ("Tripwire Approve", approve(base), 4292093695, 59446)):
         path = out / f"{name}.unsigned.shortcut"
         path.write_bytes(plistlib.dumps(workflow(acts, color, glyph), fmt=plistlib.FMT_BINARY))
