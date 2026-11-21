@@ -92,6 +92,9 @@ def route(contract: dict, answers: dict) -> dict:
     reasons: list[str] = []
     clear_fail = False
     approve_ok = True
+    if not must_ids and not must_not_ids:
+        approve_ok = False
+        reasons.append("contract: no must or must_not clauses")
 
     for cid in must_ids:
         ans = answers.get(cid)

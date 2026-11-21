@@ -4,6 +4,7 @@ check(contract, cart, products) -> verdict dict (shape: docs/ARCHITECTURE.md, ru
 reduced(verdict) is what the agent gets back from request_checkout.
 canary_token() is planted in the agent's instructions; scan_tool_args() checks tool-call arguments.
 """
+from . import canary, replay
 from .canary import canary_token, scan, scan_tool_args
 from .photo import photo_match
 from .check import check, enforced, reduced
