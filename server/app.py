@@ -40,8 +40,27 @@ async def strip_prefix(request: Request, call_next):
 
 
 def is_local(request: Request) -> bool:
-    # tailscale serve forwards from 127.0.0.1 but adds Tailscale-User-Login; direct local calls don't.
-    return request.client.host == "127.0.0.1" and "tailscale-user-login" not in request.headers
+    """True only for direct calls on this machine. tailscale serve/funnel also connect from 127.0.0.1,
+    but they add X-Forwarded-For and Tailscale-* headers (funnel traffic carries no user login at all)."""
+    if request.client is None or request.client.host != "127.0.0.1":
+        return False
+    h = {k.lower() for k in request.headers.keys()}
+    return not ({"x-forwarded-for", "x-forwarded-host", "forwarded"} & h or any(k.startswith("tailscale-") for k in h))
+
+
+# Public phone routes: a global rate limit so a public URL can't burn the Gemini key.
+_HITS: list[float] = []
+RATE_LIMIT_PER_MIN = 10
+MAX_UPLOAD_BYTES = 15 * 1024 * 1024
+
+
+def rate_limited() -> bool:
+    now = time.time()
+    _HITS[:] = [t for t in _HITS if now - t < 60]
+    if len(_HITS) >= RATE_LIMIT_PER_MIN:
+        return True
+    _HITS.append(now)
+    return False
 
 
 def _req(req_id: str) -> dict:
@@ -75,12 +94,16 @@ async def process_request(req_id: str) -> None:
 
 @app.post("/request")
 async def request_route(audio: UploadFile | None = File(None), photo: UploadFile | None = File(None)):
+    if rate_limited():
+        return JSONResponse({"speak": "Tripwire is busy. Try again in a minute.", "contract_id": None}, status_code=429)
     req_id = "rq_" + uuid.uuid4().hex[:8]
     saved = {}
     for name, f in (("audio", audio), ("photo", photo)):
         if f is None:
             continue
-        data = await f.read()
+        data = await f.read(MAX_UPLOAD_BYTES + 1)
+        if len(data) > MAX_UPLOAD_BYTES:
+            return JSONResponse({"speak": f"The {name} is too large.", "contract_id": None}, status_code=413)
         out = UPLOADS / f"{req_id}_{name}{pathlib.Path(f.filename or '').suffix or ''}"
         out.write_bytes(data)
         saved[name] = {"path": str(out), "bytes": len(data), "type": f.content_type}
@@ -120,9 +143,24 @@ async def api_state(request: Request):
     return STATE
 
 
+@app.get("/shortcuts/{name}")
+async def shortcut_file(name: str):
+    """Signed iPhone Shortcuts, for anyone with the link. Only the two known files are served."""
+    from fastapi.responses import FileResponse
+    files = {"buy": "Tripwire Buy.shortcut", "approve": "Tripwire Approve.shortcut"}
+    if name not in files:
+        return JSONResponse({"error": "unknown shortcut"}, status_code=404)
+    path = ROOT / "phone" / "build" / "public" / files[name]
+    if not path.exists():
+        return JSONResponse({"error": "not built"}, status_code=404)
+    return FileResponse(path, filename=files[name], media_type="application/octet-stream")
+
+
 @app.post("/request_text")
-async def request_text(body: dict):
-    """Typed request (dashboard / testing without the phone)."""
+async def request_text(body: dict, request: Request):
+    """Typed request (dashboard / testing without the phone). Local only."""
+    if not is_local(request):
+        return JSONResponse({"error": "local only"}, status_code=403)
     req_id = "rq_" + uuid.uuid4().hex[:8]
     STATE["requests"].append({"id": req_id, "ts": time.time(), "files": {}, "text": body.get("text", ""),
                               "status": "received"})

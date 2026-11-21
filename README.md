@@ -1,12 +1,12 @@
 # Tripwire
 
-A payment firewall for AI shopping agents. Built at the Gemini 4 NYC Hackathon by Akaash and Tanushree.
+A payment firewall for AI shopping agents. Built at the Gemini 4 NYC Hackathon by **@labs** (Akaash and Tanushree).
 
 You tell your phone what you want (voice + a photo). Gemini 4 Neon turns that into a signed **Intent Contract**.
 A shopping agent shops the real Shopify catalog, and checkout only goes through if the cart satisfies the contract.
 
-**Everything in this repo was built at the event.** Pre-event planning, API smoke tests and the iPhone Shortcuts
-live in a separate repo, `akaash11/tripwire-prep` (see its `prep/TEAM_PLAN.md`, `TESTED.md`, `prep/INTERFACES.md`).
+- Architecture: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
+- Team plan and task split: [`docs/TEAM_PLAN.md`](docs/TEAM_PLAN.md)
 
 ## Layout
 | Path | Owner | What |
@@ -15,6 +15,7 @@ live in a separate repo, `akaash11/tripwire-prep` (see its `prep/TEAM_PLAN.md`, 
 | `agent/` | Akaash | Flash shopping agent (custom functions), Catalog MCP search, Neon contract |
 | `guard/` | Tanu | `check(contract, cart, products) -> verdict`: policy, Decision 1, canary, replay/tamper, Neon checker |
 | `evals/` | Tanu | Red-team harness (Carbon attacks, off vs on) → `evals/out/results.json` |
+| `phone/` | Akaash | iPhone Shortcuts generator (Tripwire Buy, Tripwire Approve) |
 | `dashboard/` | Akaash | Control panel page (Live, Orders, Usage, Red-team, API keys) |
 
 ## Run

@@ -1,0 +1,141 @@
+"""Generate the two iPhone Shortcuts that talk to the Tripwire server.
+
+  Tripwire Buy      record voice -> take photo -> POST /request (multipart) -> show the reply
+  Tripwire Approve  GET /pending -> Approve / Block -> POST /approve (JSON) -> show the reply
+
+Usage (tailnet set for the owner's phone; public set for anyone, via Funnel on :10000):
+  python3 phone/make_shortcuts.py https://<machine>.<tailnet>.ts.net:10000/tripwire phone/build/public
+  python3 phone/make_shortcuts.py https://<machine>.<tailnet>.ts.net/tripwire
+  for n in "Tripwire Buy" "Tripwire Approve"; do
+    shortcuts sign --mode anyone -i "phone/build/$n.unsigned.shortcut" -o "phone/build/$n.shortcut"; done
+  open "phone/build/Tripwire Buy.shortcut"   # then "Tripwire Approve"; delete old copies first (re-import makes "Name 1")
+
+Shortcut name = Siri phrase ("Hey Siri, Tripwire Buy").
+"""
+from __future__ import annotations
+
+import pathlib
+import plistlib
+import sys
+import uuid
+
+OUT = pathlib.Path(__file__).parent / "build"
+
+
+def new_id() -> str:
+    return str(uuid.uuid4()).upper()
+
+
+def output_ref(uid: str, name: str) -> dict:
+    return {"Type": "ActionOutput", "OutputUUID": uid, "OutputName": name}
+
+
+def text(s: str) -> dict:
+    return {"Value": {"string": s, "attachmentsByRange": {}}, "WFSerializationType": "WFTextTokenString"}
+
+
+def token_text(*parts) -> dict:
+    """parts: plain strings or output_ref dicts, concatenated into one text field."""
+    out, attachments = "", {}
+    for p in parts:
+        if isinstance(p, str):
+            out += p
+        else:
+            attachments[f"{{{len(out)}, 1}}"] = p
+            out += "￼"
+    return {"Value": {"string": out, "attachmentsByRange": attachments}, "WFSerializationType": "WFTextTokenString"}
+
+
+def variable(ref: dict) -> dict:
+    return {"Value": ref, "WFSerializationType": "WFTextTokenAttachment"}
+
+
+def file_param(ref: dict) -> dict:
+    # Form-field files must use this wrapper or `shortcuts sign` throws.
+    return {"Value": ref, "WFSerializationType": "WFTokenAttachmentParameterState"}
+
+
+def fields(items: list[tuple[str, int, dict]]) -> dict:
+    """items: (key, item_type, value). item_type 0 = text, 5 = file."""
+    return {"Value": {"WFDictionaryFieldValueItems": [
+        {"WFItemType": t, "WFKey": text(k), "WFValue": v} for k, t, v in items]},
+        "WFSerializationType": "WFDictionaryFieldValue"}
+
+
+def action(ident: str, uid: str | None = None, **params) -> dict:
+    if uid:
+        params["UUID"] = uid
+    return {"WFWorkflowActionIdentifier": f"is.workflow.actions.{ident}", "WFWorkflowActionParameters": params}
+
+
+def get_key(src_uid: str, src_name: str, key: str, uid: str) -> dict:
+    return action("getvalueforkey", uid, WFInput=variable(output_ref(src_uid, src_name)),
+                  WFDictionaryKey=key, WFGetDictionaryValueType="Value")
+
+
+def buy(base: str) -> list[dict]:
+    rec, cam, post, speak = new_id(), new_id(), new_id(), new_id()
+    return [
+        action("recordaudio", rec),
+        action("takephoto", cam, WFCameraCaptureShowPreview=True),
+        action("downloadurl", post, WFURL=f"{base}/request", WFHTTPMethod="POST", WFHTTPBodyType="Form",
+               WFFormValues=fields([
+                   ("audio", 5, file_param(output_ref(rec, "Recorded Audio"))),
+                   ("photo", 5, file_param(output_ref(cam, "Photo"))),
+               ])),
+        get_key(post, "Contents of URL", "speak", speak),
+        action("showresult", Text=token_text(output_ref(speak, "Dictionary Value"))),
+    ]
+
+
+def approve(base: str) -> list[dict]:
+    get, cart, summ, reason, lst, pick, post, speak = (new_id() for _ in range(8))
+    return [
+        action("downloadurl", get, WFURL=f"{base}/pending", WFHTTPMethod="GET"),
+        get_key(get, "Contents of URL", "cart_id", cart),
+        get_key(get, "Contents of URL", "summary", summ),
+        get_key(get, "Contents of URL", "reason", reason),
+        action("list", lst, WFItems=["Approve", "Block"]),
+        action("choosefromlist", pick, WFInput=variable(output_ref(lst, "List")),
+               WFChooseFromListActionPrompt=token_text(output_ref(summ, "Dictionary Value"), "\n",
+                                                       output_ref(reason, "Dictionary Value"))),
+        action("downloadurl", post, WFURL=f"{base}/approve", WFHTTPMethod="POST", WFHTTPBodyType="JSON",
+               WFJSONValues=fields([
+                   ("cart_id", 0, token_text(output_ref(cart, "Dictionary Value"))),
+                   ("decision", 0, token_text(output_ref(pick, "Chosen Item"))),
+               ])),
+        get_key(post, "Contents of URL", "speak", speak),
+        action("showresult", Text=token_text(output_ref(speak, "Dictionary Value"))),
+    ]
+
+
+def workflow(actions: list[dict], color: int, glyph: int) -> dict:
+    return {
+        "WFWorkflowActions": actions,
+        "WFWorkflowClientVersion": "2607.0.2",
+        "WFWorkflowMinimumClientVersion": 900,
+        "WFWorkflowMinimumClientVersionString": "900",
+        "WFWorkflowIcon": {"WFWorkflowIconStartColor": color, "WFWorkflowIconGlyphNumber": glyph},
+        "WFWorkflowImportQuestions": [],
+        "WFWorkflowInputContentItemClasses": [],
+        "WFWorkflowTypes": [],
+        "WFQuickActionSurfaces": [],
+        "WFWorkflowHasShortcutInputVariables": False,
+    }
+
+
+def main() -> None:
+    if len(sys.argv) not in (2, 3) or not sys.argv[1].startswith("https://"):
+        sys.exit("usage: make_shortcuts.py https://<host>/tripwire [out_dir]")
+    base = sys.argv[1].rstrip("/")
+    out = pathlib.Path(sys.argv[2]) if len(sys.argv) == 3 else OUT
+    out.mkdir(parents=True, exist_ok=True)
+    for name, acts, color, glyph in (("Tripwire Buy", buy(base), 4282601983, 59511),
+                                      ("Tripwire Approve", approve(base), 4292093695, 59446)):
+        path = out / f"{name}.unsigned.shortcut"
+        path.write_bytes(plistlib.dumps(workflow(acts, color, glyph), fmt=plistlib.FMT_BINARY))
+        print("wrote", path)
+
+
+if __name__ == "__main__":
+    main()
