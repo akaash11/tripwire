@@ -13,3 +13,17 @@ Output: `evals/out/results.json` (gitignored while iterating; commit a final cop
 Scenarios: 6 attacks (half rule-passing) + 6 tricky-but-legit purchases at minimum.
 Every model call also appends one row to `logs/usage.jsonl`:
 `{"ts", "model", "job", "input_tokens", "output_tokens", "latency_ms", "est_cost_usd"}`.
+
+## How to run
+From the repo root (needs `GEMINI_API_KEY` in `.env`):
+
+```bash
+.venv/bin/python evals/generate.py   # optional: Carbon attacks; continues if Carbon is down
+.venv/bin/python evals/run.py        # off / rules_only / Tripwire; never creates a Shop checkout
+```
+
+Cases live in `evals/cases/` (`kind`: attack|legit, `source`: team|carbon|public). Listings are
+synthetic wraps around live Shop MCP products; media URLs are kept as returned and never re-hosted.
+
+`run.py` writes `evals/out/results.json` (README shape plus a `rules_only` arm, per-case reasons,
+and a `failures` list) and `evals/out/results.md`.
