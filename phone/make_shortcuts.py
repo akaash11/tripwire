@@ -1,7 +1,8 @@
 """Generate the two iPhone Shortcuts that talk to the Tripwire server.
 
-  Tripwire Buy      record voice -> take photo -> POST /request (multipart) -> show the reply
-  Tripwire Approve  GET /pending -> Approve / Block -> POST /approve (JSON) -> show the reply -> open the Shop checkout
+  Tripwire Buy      record voice -> take photo -> POST /request (multipart) -> open /t/{token} in Safari
+                    (live progress -> Approve -> merchant's Shop checkout with address + payment)
+  Tripwire Approve  (optional, owner fallback; shows the LATEST pending cart) GET /pending -> Approve / Block -> POST /approve (JSON) -> show the reply -> open the Shop checkout
 
 Usage (tailnet set for the owner's phone; public set for anyone, via Funnel on :10000):
   python3 phone/make_shortcuts.py https://<machine>.<tailnet>.ts.net:10000/tripwire phone/build/public
@@ -75,7 +76,7 @@ def get_key(src_uid: str, src_name: str, key: str, uid: str) -> dict:
 
 
 def buy(base: str) -> list[dict]:
-    rec, cam, post, speak = new_id(), new_id(), new_id(), new_id()
+    rec, cam, post, speak, tok = (new_id() for _ in range(5))
     return [
         action("recordaudio", rec),
         action("takephoto", cam, WFCameraCaptureShowPreview=True),
@@ -85,7 +86,24 @@ def buy(base: str) -> list[dict]:
                    ("photo", 5, file_param(output_ref(cam, "Photo"))),
                ])),
         get_key(post, "Contents of URL", "speak", speak),
-        action("showresult", Text=token_text(output_ref(speak, "Dictionary Value"))),
+        get_key(post, "Contents of URL", "token", tok),
+        # Got a token: open the live page in Safari (progress -> Approve -> the merchant's Shop checkout, where the
+        # shopper sees address + payment and pays). No token: show why (empty upload, busy, budget).
+        *if_else(output_ref(tok, "Dictionary Value"),
+                 [action("openurl", WFInput=token_text(f"{base}/t/", output_ref(tok, "Dictionary Value")))],
+                 [action("showresult", Text=token_text(output_ref(speak, "Dictionary Value")))]),
+    ]
+
+
+def if_else(ref: dict, then: list[dict], otherwise: list[dict]) -> list[dict]:
+    gid = new_id()
+    return [
+        action("conditional", GroupingIdentifier=gid, WFControlFlowMode=0, WFCondition=100,
+               WFInput={"Type": "Variable", "Variable": variable(ref)}),
+        *then,
+        action("conditional", GroupingIdentifier=gid, WFControlFlowMode=1),
+        *otherwise,
+        action("conditional", GroupingIdentifier=gid, WFControlFlowMode=2),
     ]
 
 

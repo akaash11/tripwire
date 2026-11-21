@@ -80,7 +80,7 @@ cart matches what you asked for. You pay on the Shop checkout page.</p>
 </div>
 <div id="out"></div>
 </main><script>
-const $=s=>document.querySelector(s);let audio=null,mr=null,chunks=[],token=null,timer=null;
+const $=s=>document.querySelector(s);let audio=null,mr=null,chunks=[],token=null,timer=null;const PRESET="__TOKEN__";const BASE=location.pathname.includes("/t/")?"../":"";
 function el(tag,attrs={},...kids){const e=document.createElement(tag);for(const[k,v]of Object.entries(attrs))e.setAttribute(k,v);
  for(const k of kids)e.append(k instanceof Node?k:document.createTextNode(String(k??"")));return e}
 $("#photo").onchange=e=>{const f=e.target.files[0];if(f){$("#prev").src=URL.createObjectURL(f);$("#prev").hidden=false}};
@@ -95,10 +95,10 @@ $("#go").onclick=async()=>{const fd=new FormData();const f=$("#photo").files[0];
  const t=$("#text").value.trim();if(t)fd.append("text",t);
  if(!f&&!audio&&!t){alert("Add a photo, your voice or some text.");return}
  $("#go").disabled=true;$("#go").textContent="Sending…";
- const r=await fetch("request",{method:"POST",body:fd});const d=await r.json();
+ const r=await fetch(BASE+"request",{method:"POST",body:fd});const d=await r.json();
  if(!d.token){$("#go").disabled=false;$("#go").textContent="Send to Tripwire";alert(d.speak||"Failed");return}
  token=d.token;$("#ask").hidden=true;poll()};
-async function poll(){const r=await fetch("w/"+token);const d=await r.json();render(d);
+async function poll(){const r=await fetch(BASE+"w/"+token);const d=await r.json();render(d);
  const done=["block","approve","no_checkout","agent_failed","contract_failed"].includes(d.status)&&!d.pending;
  if(!done&&!(d.checkout))timer=setTimeout(poll,2000)}
 function render(d){const out=$("#out");out.replaceChildren();
@@ -119,7 +119,8 @@ function render(d){const out=$("#out");out.replaceChildren();
   (c.messages||[]).filter(m=>m.type==="warning").forEach(m=>card.append(el("p",{},"⚠ "+m.content)));
   const ls=el("p",{class:"muted"});(c.links||[]).forEach(l=>{const a=el("a",{href:l.url,target:"_blank",rel:"noopener"},l.type.replace(/_/g," "));ls.append(a," · ")});card.append(ls);out.append(card)}
  if(!d.pending&&d.agent_summary&&d.status!=="shopping"){out.append(el("div",{class:"card"},el("b",{},"Agent"),el("p",{class:"muted"},d.agent_summary)))}}
-async function decide(cart_id,decision){const r=await fetch("w/"+token+"/decide",{method:"POST",headers:{"content-type":"application/json"},
+if(PRESET&&!PRESET.startsWith("__")){token=PRESET;$("#ask").hidden=true;poll()}
+async function decide(cart_id,decision){const r=await fetch(BASE+"w/"+token+"/decide",{method:"POST",headers:{"content-type":"application/json"},
  body:JSON.stringify({cart_id,decision})});const d=await r.json();if(d.url){location.href=d.url}else{alert(d.speak);poll()}}
 </script></body></html>"""
 
@@ -127,3 +128,12 @@ async function decide(cart_id,decision){const r=await fetch("w/"+token+"/decide"
 @router.get("/buy", response_class=HTMLResponse)
 async def buy_page():
     return PAGE
+
+
+@router.get("/t/{token}", response_class=HTMLResponse)
+async def track_page(token: str):
+    """Opened by the Buy shortcut right after /request: live progress -> Approve -> real Shop checkout."""
+    import re
+    if not re.fullmatch(r"[A-Za-z0-9_-]{16,40}", token) or not _find(token)[0]:
+        return HTMLResponse("<p>Request not found.</p>", status_code=404)
+    return PAGE.replace("__TOKEN__", token)

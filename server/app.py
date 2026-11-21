@@ -171,7 +171,7 @@ async def request_route(audio: UploadFile | None = File(None), photo: UploadFile
                               "token": token})
     event("request_received", request_id=req_id, files={k: v["bytes"] for k, v in saved.items()}, text=text)
     asyncio.create_task(process_request(req_id))
-    return {"speak": "Got it. Tripwire is building your contract. Run Tripwire Approve in about 30 seconds.",
+    return {"speak": "Got it. Opening your Tripwire page.",
             "contract_id": req_id, "token": token, "view_url": f"/r/{token}"}
 
 
