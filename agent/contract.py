@@ -41,7 +41,9 @@ Rules:
 - must: specs the purchase MUST satisfy, combining voice and photo (e.g. photo shows a 100W charger -> "supports 100W charging").
   Each clause short and checkable against a product listing.
 - must_not: things that would defeat the purpose (e.g. "data-only or charge-limited cable", "different color than asked").
-- max_total_cents: the spoken budget in cents. If none was given, use a reasonable cap for the item and say so in assumptions.
+- max_total_cents: the budget in cents for the DELIVERED total (item + shipping + tax). If none was given, use a
+  reasonable cap for the item including typical shipping, set budget_stated false, and say so in assumptions.
+- budget_stated: true only if the shopper said a price limit.
 - returns: "required" if they asked for returnable / free returns, else "preferred".
 - search_query: a short query for a product catalog.
 - summary: one sentence that will be spoken back to the user, starting with "You want".
@@ -57,6 +59,7 @@ SCHEMA = {
         "must": {"type": "array", "items": {"type": "string"}},
         "must_not": {"type": "array", "items": {"type": "string"}},
         "max_total_cents": {"type": "integer"},
+        "budget_stated": {"type": "boolean"},
         "quantity": {"type": "integer"},
         "returns": {"type": "string", "enum": ["required", "preferred"]},
         "search_query": {"type": "string"},
@@ -64,7 +67,7 @@ SCHEMA = {
         "assumptions": {"type": "array", "items": {"type": "string"}},
     },
     "required": ["user_request", "photo_observations", "item", "must", "must_not", "max_total_cents",
-                 "quantity", "returns", "search_query", "summary", "assumptions"],
+                 "budget_stated", "quantity", "returns", "search_query", "summary", "assumptions"],
 }
 
 

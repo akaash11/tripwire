@@ -123,6 +123,12 @@ async def process_request(req_id: str) -> None:
     if v is None:
         r["status"] = "no_checkout"
         r["problem"] = getattr(session, "last_problem", None)
+        ob = getattr(session, "over_budget", None)
+        if ob:
+            r["status"] = "over_budget"
+            r["offer"] = {"cart_id": ob["cart"]["cart_id"], "summary": ob["summary"],
+                          "total_cents": ob["total_cents"], "budget_cents": ob["budget_cents"],
+                          "budget_stated": bool(contract.get("budget_stated", True))}
         return
     r["status"] = v["verdict"]
     if session.pending_cart:

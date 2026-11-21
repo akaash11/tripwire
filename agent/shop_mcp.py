@@ -88,6 +88,18 @@ def refresh_checkout_view(shop_domain: str, checkout_id: str) -> dict:
     return checkout_view(get_checkout(shop_domain, checkout_id))
 
 
+_FILL = {"buyer_identity_contact_method_required": "email or phone", "delivery_first_name_required": "first name",
+         "delivery_last_name_required": "last name", "delivery_address1_required": "street address",
+         "delivery_address_required": "delivery address", "delivery_phone_number_required": "phone number",
+         "extension_interaction_required": "a step on the store's checkout",
+         "delivery_no_delivery_available": "delivery address"}
+
+
+def _buyer_input(m: dict) -> bool:
+    code = m.get("code") or ""
+    return code in _FILL or code.endswith("_required") or m.get("severity") == "requires_buyer_input"
+
+
 def checkout_view(c: dict) -> dict:
     """What we show the shopper (and store): no checkout id, continue_url kept separately."""
     order = c.get("order")
@@ -102,8 +114,11 @@ def checkout_view(c: dict) -> dict:
                   for l in c.get("line_items", [])],
         "totals": [{"type": t.get("type"), "amount": t.get("amount"), "label": t.get("display_text")}
                    for t in c.get("totals", [])],
+        # Details the shopper types on the Shop page (name, address, phone, email) are not problems: list them apart.
         "messages": [{"type": m.get("type"), "code": m.get("code"), "severity": m.get("severity"),
-                      "content": m.get("content")} for m in c.get("messages", [])],
+                      "content": m.get("content")} for m in c.get("messages", []) if not _buyer_input(m)],
+        "to_fill_on_shop": sorted({_FILL.get(m.get("code"), "checkout details") for m in c.get("messages", [])
+                                   if _buyer_input(m)}),
         "links": [{"type": l.get("type"), "url": l.get("url")} for l in c.get("links", [])],
         "order": order_view,
         "expires_at": c.get("expires_at"),

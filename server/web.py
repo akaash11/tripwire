@@ -10,7 +10,7 @@ from fastapi import APIRouter
 from fastapi.responses import HTMLResponse, JSONResponse
 
 router = APIRouter()
-VERSION = "1.3"  # bump with phone/make_shortcuts.py VERSION; shown on the page and logged per request
+VERSION = "1.4"  # bump with phone/make_shortcuts.py VERSION; shown on the page and logged per request
 
 
 def _find(token: str):
@@ -27,18 +27,36 @@ async def web_status(token: str):
         return JSONResponse({"error": "not found"}, status_code=404)
     c = STATE.get("contracts", {}).get(r.get("contract_id")) if r.get("contract_id") else None
     out = {"status": r["status"], "client": r.get("client"), "server_version": VERSION, "contract": None, "pending": None, "verdict": None, "checkout": None,
-           "agent_summary": getattr(s, "agent_summary", None) if s else None, "problem": r.get("problem")}
+           "agent_summary": getattr(s, "agent_summary", None) if s else None, "problem": r.get("problem"),
+           "offer": r.get("offer")}
     if c:
         out["contract"] = {k: c.get(k) for k in ("summary", "item", "must", "must_not", "max_total_cents",
-                                                  "photo_observations", "compiled_by")}
+                                                  "photo_observations", "compiled_by", "budget_stated")}
+    if s and getattr(s, "contract", None) and s.contract.get("amended_by") == "shopper":
+        out["contract"] = (out["contract"] or {}) | {"max_total_cents": s.contract["max_total_cents"], "budget_stated": True}
     if s and s.verdict:
         x = s.verdict.get("xray", {})
         out["verdict"] = {"verdict": s.verdict["verdict"], "reasons": x.get("reasons", [])}
     if s and s.pending_cart:
         out["pending"] = {"cart_id": s.pending_cart["cart_id"], "summary": s.pending_cart["summary"]}
     if s and s.checkout:
-        out["checkout"] = {k: s.checkout.get(k) for k in ("status", "totals", "lines", "messages", "links")}
+        out["checkout"] = {k: s.checkout.get(k) for k in ("status", "totals", "lines", "messages", "links", "to_fill_on_shop")}
     return out
+
+
+@router.post("/w/{token}/raise_budget")
+async def web_raise_budget(token: str, body: dict):
+    """Shopper taps 'Raise budget' on their own request page. Only the cheapest quoted option, only by the shopper."""
+    import asyncio
+    r, s = _find(token)
+    off = (r or {}).get("offer")
+    if not r or not s or not off or off["cart_id"] != body.get("cart_id"):
+        return {"ok": False, "speak": "Nothing to raise for this request."}
+    res = await asyncio.to_thread(s.raise_budget, off["cart_id"])
+    if not res:
+        return {"ok": False, "speak": "That option is no longer available."}
+    r["offer"], r["problem"], r["status"] = None, None, res["verdict"]
+    return {"ok": res["verdict"] != "block", "speak": res.get("reason") or "Budget raised. Review and approve."}
 
 
 @router.post("/w/{token}/decide")
@@ -76,6 +94,9 @@ cart matches what you asked for. You pay on the Shop checkout page.</p>
 <input id="photo" type="file" accept="image/*" capture="environment"><img id="prev" class="prev" alt="" hidden>
 <label>Say it</label><div class="row"><button class="ghost" id="rec" type="button">Hold to talk</button></div>
 <p class="muted" id="recstate"></p>
+<label for="budget">Max you want to spend, delivered (optional)</label>
+<input id="budget" type="number" inputmode="decimal" min="1" step="1" placeholder="e.g. 25"
+ style="width:100%;border:1px solid var(--line);border-radius:8px;padding:8px;font:inherit;background:transparent;color:inherit">
 <label for="text">Or type it</label><textarea id="text" placeholder="A 100W USB-C cable under $20 with free returns"></textarea>
 <button class="primary" id="go" type="button">Send to Tripwire</button>
 </div>
@@ -94,24 +115,31 @@ function stopRec(){if(mr&&mr.state==="recording")mr.stop()}
 const rec=$("#rec");rec.onpointerdown=startRec;rec.onpointerup=stopRec;rec.onpointerleave=stopRec;
 $("#go").onclick=async()=>{const fd=new FormData();const f=$("#photo").files[0];if(f)fd.append("photo",f);
  if(audio)fd.append("audio",audio,"voice."+((audio.type||"").includes("webm")?"webm":"m4a"));
- const t=$("#text").value.trim();if(t)fd.append("text",t);fd.append("client","web __VERSION__");
+ const bud=$("#budget").value.trim();let t=$("#text").value.trim();
+ if(bud)t=(t?t+". ":"")+"Budget: $"+bud+" delivered, including shipping and tax.";if(t)fd.append("text",t);fd.append("client","web __VERSION__");
  if(!f&&!audio&&!t){alert("Add a photo, your voice or some text.");return}
  $("#go").disabled=true;$("#go").textContent="Sending…";
  const r=await fetch(BASE+"request",{method:"POST",body:fd});const d=await r.json();
  if(!d.token){$("#go").disabled=false;$("#go").textContent="Send to Tripwire";alert(d.speak||"Failed");return}
  token=d.token;$("#ask").hidden=true;poll()};
 async function poll(){const r=await fetch(BASE+"w/"+token);const d=await r.json();render(d);
- const done=["block","approve","no_checkout","agent_failed","contract_failed"].includes(d.status)&&!d.pending;
+ const done=["block","approve","no_checkout","over_budget","agent_failed","contract_failed"].includes(d.status)&&!d.pending;
  if(!done&&!(d.checkout))timer=setTimeout(poll,2000)}
 function render(d){const out=$("#out");out.replaceChildren();
  $("#ver").textContent="Tripwire server "+(d.server_version||"")+" · sent from "+(d.client||"?");
  const steps={received:"Got your request",compiling_contract:"Understanding what you want (Gemini 4 Neon)…",contract_ready:"Contract signed",
-  shopping:"Agent is shopping real Shopify stores…",ask_human:"Needs your OK",approve:"Approved",block:"Blocked",no_checkout:"Agent didn't pick anything",
+  shopping:"Agent is shopping real Shopify stores…",ask_human:"Needs your OK",over_budget:"Over your budget",approve:"Approved",block:"Blocked",no_checkout:"Agent didn't pick anything",
   agent_failed:"Agent failed",contract_failed:"Couldn't understand the request"};
  out.append(el("div",{class:"card"},el("b",{},steps[d.status]||d.status)));
  if(d.contract){const c=d.contract;const card=el("div",{class:"card"},el("b",{},"What you asked for"),el("p",{},c.summary||""));
   const ul=el("ul");(c.must||[]).forEach(m=>ul.append(el("li",{},"Must: "+m.clause)));(c.must_not||[]).forEach(m=>ul.append(el("li",{},"Must not: "+m.clause)));
-  card.append(ul,el("p",{class:"muted"},"Budget $"+((c.max_total_cents||0)/100).toFixed(2)+" · understood by "+(c.compiled_by||"")));out.append(card)}
+  card.append(ul,el("p",{class:"muted"},"Budget $"+((c.max_total_cents||0)/100).toFixed(2)+" delivered"+(c.budget_stated===false?" (Tripwire's guess: you didn't say one)":"")+" · understood by "+(c.compiled_by||"")));out.append(card)}
+ if(d.offer){const o=d.offer;const card=el("div",{class:"card"},el("b",{},"Everything is over your budget"),
+  el("p",{},"Cheapest option that delivers to you: "+o.summary+"."),
+  el("p",{class:"muted"},"Your budget: $"+(o.budget_cents/100).toFixed(2)+(o.budget_stated?"":" (a guess)")+". Only you can raise it; the agent can't."));
+  const up=el("button",{class:"ok",type:"button"},"Raise budget to $"+(o.total_cents/100).toFixed(2)),no=el("button",{class:"ghost",type:"button"},"No thanks");
+  up.onclick=async()=>{up.disabled=true;const r=await fetch(BASE+"w/"+token+"/raise_budget",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({cart_id:o.cart_id})});
+   const x=await r.json();if(!x.ok)alert(x.speak);poll()};no.onclick=()=>card.remove();card.append(el("div",{class:"row"},no,up));out.append(card)}
  if(d.pending){const card=el("div",{class:"card"},el("b",{},"The agent wants to buy"),el("p",{},d.pending.summary));
   if(d.verdict&&d.verdict.reasons&&d.verdict.reasons.length)card.append(el("p",{class:"muted"},"Tripwire: "+d.verdict.reasons.join("; ")));
   const a=el("button",{class:"ok",type:"button"},"Approve and pay on Shop"),b=el("button",{class:"no",type:"button"},"Block");
@@ -120,8 +148,9 @@ function render(d){const out=$("#out");out.replaceChildren();
  if(d.checkout){const c=d.checkout;const card=el("div",{class:"card"},el("b",{},"Shop checkout: "+c.status));
   (c.totals||[]).forEach(t=>card.append(el("div",{},(t.label||t.type)+": $"+((t.amount||0)/100).toFixed(2))));
   (c.messages||[]).filter(m=>m.type==="warning").forEach(m=>card.append(el("p",{},"⚠ "+m.content)));
+  if((c.to_fill_on_shop||[]).length)card.append(el("p",{class:"muted"},"You'll enter on the Shop page: "+c.to_fill_on_shop.join(", ")+"."));
   const ls=el("p",{class:"muted"});(c.links||[]).forEach(l=>{const a=el("a",{href:l.url,target:"_blank",rel:"noopener"},l.type.replace(/_/g," "));ls.append(a," · ")});card.append(ls);out.append(card)}
- if(d.problem)out.append(el("div",{class:"card"},el("b",{},"Couldn't buy it"),el("p",{},d.problem)));
+ if(d.problem&&!d.offer)out.append(el("div",{class:"card"},el("b",{},"Couldn't buy it"),el("p",{},d.problem)));
  if(!d.pending&&d.agent_summary&&d.status!=="shopping"){out.append(el("div",{class:"card"},el("b",{},"Agent"),el("p",{class:"muted"},d.agent_summary)))}}
 if(PRESET&&!PRESET.startsWith("__")){token=PRESET;$("#ask").hidden=true;poll()}
 async function decide(cart_id,decision){const r=await fetch(BASE+"w/"+token+"/decide",{method:"POST",headers:{"content-type":"application/json"},

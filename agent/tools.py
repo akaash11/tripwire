@@ -203,6 +203,10 @@ class ShopSession:
             return f"{cart['payee'].get('name')} didn't quote shipping to {where} (local pickup or delivery only)."
         total, cap = totals.get("total"), self.contract.get("max_total_cents")
         if total is not None and cap and total > cap:
+            best = getattr(self, "over_budget", None)
+            if best is None or total < best["total_cents"]:
+                self.over_budget = {"cart": cart, "checkout": c, "total_cents": total, "budget_cents": cap,
+                                    "summary": f"{cart['summary']}, ${total/100:.2f} delivered to {where}"}
             return (f"Delivered total is ${total/100:.2f} (item ${(totals.get('subtotal') or 0)/100:.2f}, shipping "
                     f"${(totals.get('fulfillment') or 0)/100:.2f}, tax/duty ${((totals.get('tax') or 0)+(totals.get('duty') or 0))/100:.2f}), "
                     f"over the ${cap/100:.2f} budget.")
@@ -212,6 +216,30 @@ class ShopSession:
             cart["summary"] += (f", ${total/100:.2f} delivered to {where}"
                                 + (f" (shipping ${ship/100:.2f})" if ship else " (free shipping)" if ship == 0 else ""))
         return None
+
+    def raise_budget(self, cart_id: str) -> dict | None:
+        """The SHOPPER (never the agent) accepts the cheapest over-budget option: re-sign the contract with the new cap,
+        re-run the guard, and make that checkout pending for their approval."""
+        ob = getattr(self, "over_budget", None)
+        if not ob or ob["cart"]["cart_id"] != cart_id:
+            return None
+        from common.signing import sign
+        amended = {k: v for k, v in self.contract.items() if k != "signature"}
+        amended.update(max_total_cents=ob["total_cents"], budget_stated=True,
+                       amended_from=self.contract.get("contract_id"), amended_by="shopper", amended_at=time.time())
+        self.contract = sign(amended)
+        cart = ob["cart"]
+        products = [self.products[l["variant_id"]] for l in cart["lines"] if l["variant_id"] in self.products]
+        v = guard.check(self.contract, cart, products)
+        self.verdict, self.last_problem, self.over_budget = v, None, None
+        self.on_event("budget_raised", cart_id=cart_id, new_budget_cents=ob["total_cents"],
+                      old_budget_cents=ob["budget_cents"], verdict=v["verdict"])
+        if v["verdict"] == "block" and v.get("enforced", True):
+            return {"verdict": "block", "reason": guard.reduced(v).get("reason", "")}
+        self._store_checkout(cart, ob["checkout"])
+        cart["summary"] = ob["summary"]
+        self.pending_cart = cart
+        return {"verdict": v["verdict"], "summary": cart["summary"]}
 
     def _store_checkout(self, cart: dict, c: dict) -> None:
         self.continue_url = c.get("continue_url")
