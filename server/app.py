@@ -130,9 +130,9 @@ async def process_request(req_id: str) -> None:
         STATE["pending"] = {"cart_id": c["cart_id"], "request_id": req_id, "verdict": v["verdict"],
                             "summary": f"Agent wants: {c['summary']}. You asked: {contract.get('summary')}",
                             "reason": "; ".join(v.get("xray", {}).get("reasons", []))[:300]}
-    if session.continue_url:
+    if session.continue_url and not session.pending_cart:
         r["pay_ready"] = True
-    if session.checkout:
+    if session.checkout and not session.pending_cart:
         cid = session.checkout.get("cart_id") or (v.get("cart_id") if v else None)
         if not any(o.get("cart_id") == cid and o.get("request_id") == req_id for o in STATE["orders"]):
             STATE["orders"].append({
