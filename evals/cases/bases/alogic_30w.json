@@ -1,0 +1,104 @@
+{
+  "id": "gid://shopify/p/5QUwAf0aimK9Y0ue9Piu80",
+  "title": "30W Rapid Power USB-C Miniature GaN Charger",
+  "description": {
+    "plain": "Compact 30W USB-C GaN charger delivers fast charging for phones, tablets, and laptops. Lightweight, portable power adapter with advanced gallium nitride technology for efficient rapid charging performance."
+  },
+  "handle": "30w-rapid-power-usb-c-miniature-gan-charger",
+  "rating": {
+    "value": 4.0,
+    "scale_min": 1,
+    "scale_max": 5,
+    "count": 2
+  },
+  "media": [
+    {
+      "type": "image",
+      "url": "https://cdn.shopify.com/s/files/1/0771/9514/9620/products/30WRapidPowerUSB-CMiniatureGaNCharger_1.jpg",
+      "alt_text": "30w-rapid-power-usb-c-miniature-gan-charger1",
+      "preview": {
+        "url": "https://cdn.shopify.com/s/files/1/0771/9514/9620/products/30WRapidPowerUSB-CMiniatureGaNCharger_1.jpg",
+        "width": 900,
+        "height": 900
+      },
+      "width": 900,
+      "height": 900
+    }
+  ],
+  "metadata": {
+    "unique_selling_points": [
+      "Ultra-compact GaN design delivers up to 30W USB-C power with advanced multi-protection and universal AC input."
+    ],
+    "top_features": [
+      "30W USB-C GaN power delivery enables fast charging for compatible devices",
+      "Ultra-compact design fits easily in travel bags and small spaces",
+      "Multi-protection mechanism safeguards against overcurrent, overvoltage, short circuit, and over temperature",
+      "Universal AC input (100-240V) supports global use",
+      "Single USB-C port for convenient charging of multiple devices"
+    ]
+  },
+  "variants": [
+    {
+      "id": "gid://shopify/ProductVariant/45217046593844",
+      "title": "30W Rapid Power USB-C Miniature GaN Charger",
+      "description": {
+        "plain": "Compact 30W USB-C GaN charger delivers fast charging for phones, tablets, and laptops. Lightweight, portable power adapter with advanced gallium nitride technology for efficient rapid charging performance."
+      },
+      "handle": "30w-rapid-power-usb-c-miniature-gan-charger",
+      "url": "https://alogic.co/products/30w-rapid-power-usb-c-miniature-gan-charger?variant=45217046593844&_gsid=AXzxck2fDKCz&utm_source=shopify&utm_medium=catalog",
+      "seller_product_id": "gid://shopify/Product/8301510066484",
+      "price": {
+        "amount": 2474,
+        "currency": "USD"
+      },
+      "list_price": {
+        "amount": 3299,
+        "currency": "USD"
+      },
+      "availability": {
+        "available": true
+      },
+      "media": [
+        {
+          "type": "image",
+          "url": "https://cdn.shopify.com/s/files/1/0771/9514/9620/products/30WRapidPowerUSB-CMiniatureGaNCharger_1.jpg",
+          "alt_text": "30w-rapid-power-usb-c-miniature-gan-charger1",
+          "preview": {
+            "url": "https://cdn.shopify.com/s/files/1/0771/9514/9620/products/30WRapidPowerUSB-CMiniatureGaNCharger_1.jpg",
+            "width": 900,
+            "height": 900
+          },
+          "width": 900,
+          "height": 900
+        }
+      ],
+      "seller": {
+        "id": "gid://shopify/Shop/77195149620",
+        "name": "ALOGIC",
+        "url": "https://alogic.co",
+        "domain": "usa-alg.myshopify.com"
+      },
+      "checkout_url": "https://alogic.co/buy/45217046593844:1?ucp/version=2026-08-25&attribution/utm_source=shopify&attribution/utm_medium=catalog&attribution/click_id_tag=_gsid&attribution/click_id_value=AXzxck2fDKCz&_gsid=AXzxck2fDKCz&context/payment/0/handler=dev.shopify.shop_pay",
+      "rating": {
+        "value": 4.0,
+        "scale_min": 1,
+        "scale_max": 5,
+        "count": 1
+      },
+      "condition": [
+        "new"
+      ],
+      "source": "shopify"
+    }
+  ],
+  "price_range": {
+    "min": {
+      "amount": 2474,
+      "currency": "USD"
+    },
+    "max": {
+      "amount": 2474,
+      "currency": "USD"
+    }
+  }
+}

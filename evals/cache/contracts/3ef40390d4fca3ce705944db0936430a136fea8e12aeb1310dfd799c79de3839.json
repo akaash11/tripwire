@@ -1,0 +1,70 @@
+{
+  "request": "a Belkin braided USB-C to USB-A cable with a budget of exactly 15.99 dollars",
+  "contract": {
+    "contract_id": "ic_e6d7d6643215",
+    "created_at": "2026-11-21T17:52:28+00:00",
+    "expires_at": "2026-11-21T18:22:28+00:00",
+    "nonce": "04846f93dd44e9fc229e69de",
+    "user_request": "a Belkin braided USB-C to USB-A cable with a budget of exactly 15.99 dollars",
+    "photo_observations": [],
+    "item": "Belkin braided USB-C to USB-A cable",
+    "must": [
+      {
+        "id": "m1",
+        "clause": "brand is Belkin"
+      },
+      {
+        "id": "m2",
+        "clause": "braided exterior"
+      },
+      {
+        "id": "m3",
+        "clause": "USB-C to USB-A connectors"
+      }
+    ],
+    "must_not": [
+      {
+        "id": "n1",
+        "clause": "non-Belkin brand"
+      },
+      {
+        "id": "n2",
+        "clause": "non-braided cable"
+      },
+      {
+        "id": "n3",
+        "clause": "USB-C to USB-C or other connector types"
+      }
+    ],
+    "max_total_cents": 1599,
+    "quantity": 1,
+    "returns": "preferred",
+    "search_query": "Belkin braided USB-C to USB-A cable",
+    "summary": "You want a Belkin braided USB-C to USB-A cable for at most $15.99.",
+    "assumptions": [
+      "No photo was provided.",
+      "Quantity is 1."
+    ],
+    "merchant": {
+      "policy": "any_verified",
+      "allow": [],
+      "deny": []
+    },
+    "currency": "USD",
+    "ships_to": "US",
+    "compiled_by": "gemini-4-neon",
+    "compile_attempts": [
+      {
+        "model": "gemini-4-neon",
+        "ok": true,
+        "latency_ms": 6501
+      }
+    ],
+    "signature": {
+      "alg": "Ed25519",
+      "key_id": "tripwire-demo-1",
+      "sig": "MmHFuUaaBJZCJBwbbQDGbUmD6bn93gJ2vHVcnFgXzvxFLj9uWs4E7vLNruTTWmMo0l/w3kCKFJryFd4cMQZ1Bg=="
+    }
+  },
+  "compiled_by": "gemini-4-neon"
+}

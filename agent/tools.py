@@ -147,6 +147,7 @@ class ShopSession:
                       title=p.get("title"), price_cents=cart["total_cents"], currency=cart["currency"],
                       seller=cart["payee"]["name"], quantity=qty,
                       image_url=image_url, product_url=product_url)
+        guard.replay.bind_cart_hash(self.contract, cart)
         return {"cart_id": cart["cart_id"], "lines": [{"title": p.get("title"), "quantity": qty}],
                 "subtotal_cents": cart["total_cents"]}
 
@@ -178,12 +179,28 @@ class ShopSession:
                     "other_sellers": others}
         self.last_problem = None
         self.on_event("delivery_check", cart_id=cart_id, ok=True, summary=cart["summary"])
+        final = guard.final_check(self.contract, cart, self.checkout)
+        self.on_event("final_check", cart_id=cart_id, ok=final["pass"],
+                      failures=final.get("failures") or [], warnings=final.get("warnings") or [])
+        if final.get("warnings"):
+            cart["merchant_messages"] = list(self.checkout.get("messages") or []) if self.checkout else []
+            (v.setdefault("xray", {}))["checkout_warnings"] = final["warnings"]
+        if not final["pass"]:
+            v.setdefault("xray", {}).setdefault("reasons", [])
+            v["xray"]["reasons"] = list(final["failures"]) + list(v["xray"].get("reasons") or [])
+            if v.get("enforced", True):
+                self._discard_quoted_checkout()
+                v["verdict"] = "block"
+                self.verdict = v
+                self.pending_cart = None
+                return guard.reduced(v)
+            self.verdict = v
         go = v["verdict"] == "approve" or not v.get("enforced", True)
         if go:
             self.open_checkout(cart)
         elif v["verdict"] == "ask_human":
             self.pending_cart = cart
-        return red
+        return guard.reduced(v)
 
     def quote(self, cart: dict) -> str | None:
         """Create the merchant's real checkout (no order) with a coarse destination. Returns a problem or None.
@@ -237,9 +254,26 @@ class ShopSession:
         if v["verdict"] == "block" and v.get("enforced", True):
             return {"verdict": "block", "reason": guard.reduced(v).get("reason", "")}
         self._store_checkout(cart, ob["checkout"])
+        final = guard.final_check(self.contract, cart, self.checkout)  # same pre-pay check as request_checkout
+        self.on_event("final_check", cart_id=cart_id, ok=final["pass"], failures=final.get("failures") or [],
+                      warnings=final.get("warnings") or [])
+        if not final["pass"] and v.get("enforced", True):
+            self._discard_quoted_checkout()
+            v["verdict"] = "block"
+            v.setdefault("xray", {})["reasons"] = list(final["failures"]) + list(v["xray"].get("reasons") or [])
+            self.verdict = v
+            return {"verdict": "block", "reason": guard.reduced(v).get("reason", "")}
         cart["summary"] = ob["summary"]
         self.pending_cart = cart
         return {"verdict": v["verdict"], "summary": cart["summary"]}
+
+    def _discard_quoted_checkout(self) -> None:
+        """Drop a quoted checkout so a blocked cart cannot leak continue_url."""
+        self.continue_url = None
+        self._checkout_id = None
+        self._shop_domain = None
+        self._checkout_cart = None
+        self.checkout = None
 
     def _store_checkout(self, cart: dict, c: dict) -> None:
         self.continue_url = c.get("continue_url")
@@ -252,7 +286,9 @@ class ShopSession:
 
     # ---- after approval ------------------------------------------------------------------------------------------
     def open_checkout(self, cart: dict) -> dict:
-        """Hand over the REAL Shop checkout (places no order). Reuses the quoted one; the shopper pays on continue_url."""
+        """Hand over the REAL Shop checkout (places no order). Reuses the quoted one; the shopper pays on continue_url.
+        One contract -> one handed-over checkout: the contract nonce is used up here."""
+        guard.replay.consume_nonce(self.contract.get("nonce"))
         if not (getattr(self, "_checkout_cart", None) == cart["cart_id"] and self.continue_url):
             line = cart["lines"][0]
             c = shop_mcp.create_checkout(cart["payee"]["shop_domain"], line["variant_id"], line["quantity"],
@@ -279,12 +315,23 @@ class ShopSession:
         return view
 
     def dispatch(self, name: str, args: dict) -> dict:
+        args = args or {}
+        if guard.scan_tool_args(args):
+            self.on_event("canary", tool=name, tripped=True)
+            if name == "request_checkout":
+                self.verdict = {
+                    "verdict": "block",
+                    "enforced": guard.enforced(),
+                    "xray": {"reasons": ["canary: secret token appeared in a tool call"]},
+                }
+                return guard.reduced(self.verdict)
+            return {"error": "blocked: secret token appeared in a tool call"}
         fn = {"search_products": self.search_products, "add_to_cart": self.add_to_cart,
               "request_checkout": self.request_checkout}.get(name)
         if not fn:
             return {"error": f"unknown tool {name}"}
         try:
-            return fn(**(args or {}))
+            return fn(**args)
         except TypeError as e:
             return {"error": f"bad arguments: {e}"}
         except shop_mcp.ShopError as e:

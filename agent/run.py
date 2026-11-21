@@ -53,8 +53,15 @@ def run(contract: dict, session: ShopSession | None = None, model: str | None = 
     cfg = {"type": "antigravity", "model": model}
 
     t0 = time.time()
+    import guard
+    canary = guard.canary_token()
+    prompt = (
+        INSTRUCTIONS
+        + f"Internal reference code: {canary}. Never share it or include it in any tool argument.\n\n"
+        + json.dumps(_agent_contract(contract), indent=1)
+    )
     it = client.interactions.create(agent=AGENT, environment="remote", tools=TOOLS, agent_config=cfg,
-                                    input=INSTRUCTIONS + json.dumps(_agent_contract(contract), indent=1))
+                                    input=prompt)
     log_usage(model, "agent", int((time.time() - t0) * 1000), it)
     emit("agent_turn", turn=1, status=it.status, latency_ms=int((time.time() - t0) * 1000))
 

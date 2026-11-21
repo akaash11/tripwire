@@ -1,0 +1,74 @@
+{
+  "request": "a 30W USB-C wall charger under 15 dollars",
+  "contract": {
+    "contract_id": "ic_a4e7247e0c17",
+    "created_at": "2026-11-21T17:52:21+00:00",
+    "expires_at": "2026-11-21T18:22:21+00:00",
+    "nonce": "6a4e7100f1f6f4c8943a6aff",
+    "user_request": "a 30W USB-C wall charger under 15 dollars",
+    "photo_observations": [],
+    "item": "30W USB-C wall charger",
+    "must": [
+      {
+        "id": "m1",
+        "clause": "supports at least 30W output"
+      },
+      {
+        "id": "m2",
+        "clause": "has a USB-C port"
+      },
+      {
+        "id": "m3",
+        "clause": "wall charger plug"
+      }
+    ],
+    "must_not": [
+      {
+        "id": "n1",
+        "clause": "output below 30W"
+      },
+      {
+        "id": "n2",
+        "clause": "USB-A only"
+      },
+      {
+        "id": "n3",
+        "clause": "car charger"
+      },
+      {
+        "id": "n4",
+        "clause": "cable only without charger"
+      }
+    ],
+    "max_total_cents": 1500,
+    "quantity": 1,
+    "returns": "preferred",
+    "search_query": "30W USB-C wall charger",
+    "summary": "You want a 30W USB-C wall charger for under 15 dollars.",
+    "assumptions": [
+      "Quantity is 1",
+      "No photo was provided"
+    ],
+    "merchant": {
+      "policy": "any_verified",
+      "allow": [],
+      "deny": []
+    },
+    "currency": "USD",
+    "ships_to": "US",
+    "compiled_by": "gemini-4-neon",
+    "compile_attempts": [
+      {
+        "model": "gemini-4-neon",
+        "ok": true,
+        "latency_ms": 8113
+      }
+    ],
+    "signature": {
+      "alg": "Ed25519",
+      "key_id": "tripwire-demo-1",
+      "sig": "9e7K4McR6pcmuzSKcGzxAnhxluJpYWZSACfZ0va72fb811TzXIC2/p02cWSJf9XoorjK1RUiLN7zjxT+lVM7BQ=="
+    }
+  },
+  "compiled_by": "gemini-4-neon"
+}

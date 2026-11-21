@@ -1,0 +1,71 @@
+{
+  "request": "a 100W USB-C cable, 10 feet, under 20 dollars",
+  "contract": {
+    "contract_id": "ic_0fdf8c42710a",
+    "created_at": "2026-11-21T17:51:55+00:00",
+    "expires_at": "2026-11-21T18:21:55+00:00",
+    "nonce": "df83d2c19de9be34e0ec5034",
+    "user_request": "a 100W USB-C cable, 10 feet, under 20 dollars",
+    "photo_observations": [],
+    "item": "USB-C cable",
+    "must": [
+      {
+        "id": "m1",
+        "clause": "supports 100W charging"
+      },
+      {
+        "id": "m2",
+        "clause": "10 feet length"
+      },
+      {
+        "id": "m3",
+        "clause": "USB-C to USB-C"
+      }
+    ],
+    "must_not": [
+      {
+        "id": "n1",
+        "clause": "power rating under 100W"
+      },
+      {
+        "id": "n2",
+        "clause": "length other than 10 feet"
+      },
+      {
+        "id": "n3",
+        "clause": "USB-A connector"
+      }
+    ],
+    "max_total_cents": 2000,
+    "quantity": 1,
+    "returns": "preferred",
+    "search_query": "100W USB-C cable 10ft",
+    "summary": "You want a 10-foot 100W USB-C cable for under 20 dollars.",
+    "assumptions": [
+      "No photo was provided",
+      "Quantity of 1 assumed",
+      "USB-C to USB-C connector assumed"
+    ],
+    "merchant": {
+      "policy": "any_verified",
+      "allow": [],
+      "deny": []
+    },
+    "currency": "USD",
+    "ships_to": "US",
+    "compiled_by": "gemini-4-neon",
+    "compile_attempts": [
+      {
+        "model": "gemini-4-neon",
+        "ok": true,
+        "latency_ms": 7366
+      }
+    ],
+    "signature": {
+      "alg": "Ed25519",
+      "key_id": "tripwire-demo-1",
+      "sig": "LX5ZkqNeKG7qSwnh6qkkywdKZPJoz9mVC9B9Do9HDjDq1nYRu8wikGr6BjmPXPuVw0l6oHUuEzuA9Z/rBII6Dg=="
+    }
+  },
+  "compiled_by": "gemini-4-neon"
+}

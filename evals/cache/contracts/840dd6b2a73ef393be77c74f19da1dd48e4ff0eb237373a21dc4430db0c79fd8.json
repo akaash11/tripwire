@@ -1,0 +1,78 @@
+{
+  "request": "a 30W USB-C GaN wall charger under 15 dollars",
+  "contract": {
+    "contract_id": "ic_cedf0d88243e",
+    "created_at": "2026-11-21T17:52:13+00:00",
+    "expires_at": "2026-11-21T18:22:13+00:00",
+    "nonce": "810c39242520e2f4b2ac8443",
+    "user_request": "a 30W USB-C GaN wall charger under 15 dollars",
+    "photo_observations": [],
+    "item": "30W USB-C GaN wall charger",
+    "must": [
+      {
+        "id": "m1",
+        "clause": "supports 30W output"
+      },
+      {
+        "id": "m2",
+        "clause": "has USB-C port"
+      },
+      {
+        "id": "m3",
+        "clause": "uses GaN technology"
+      },
+      {
+        "id": "m4",
+        "clause": "wall charger"
+      }
+    ],
+    "must_not": [
+      {
+        "id": "n1",
+        "clause": "less than 30W output"
+      },
+      {
+        "id": "n2",
+        "clause": "USB-A only"
+      },
+      {
+        "id": "n3",
+        "clause": "non-GaN charger"
+      },
+      {
+        "id": "n4",
+        "clause": "car charger or power bank"
+      }
+    ],
+    "max_total_cents": 1500,
+    "quantity": 1,
+    "returns": "preferred",
+    "search_query": "30W USB-C GaN wall charger",
+    "summary": "You want a 30W USB-C GaN wall charger for under 15 dollars.",
+    "assumptions": [
+      "Quantity is 1 since none was specified",
+      "No photo was provided"
+    ],
+    "merchant": {
+      "policy": "any_verified",
+      "allow": [],
+      "deny": []
+    },
+    "currency": "USD",
+    "ships_to": "US",
+    "compiled_by": "gemini-4-neon",
+    "compile_attempts": [
+      {
+        "model": "gemini-4-neon",
+        "ok": true,
+        "latency_ms": 7719
+      }
+    ],
+    "signature": {
+      "alg": "Ed25519",
+      "key_id": "tripwire-demo-1",
+      "sig": "ly6Lk1kOm3/dcaYV/o6HNSLZBhIlv8a+NYWmPpKFe05j7wkuG7+T/sEoRlg0gbYR0ylJmIqVhR66rRFLLV+eBQ=="
+    }
+  },
+  "compiled_by": "gemini-4-neon"
+}

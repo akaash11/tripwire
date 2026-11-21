@@ -1,0 +1,70 @@
+{
+  "request": "an official UGREEN 100W USB-C cable under 20 dollars",
+  "contract": {
+    "contract_id": "ic_7c4944265f49",
+    "created_at": "2026-11-21T17:52:44+00:00",
+    "expires_at": "2026-11-21T18:22:44+00:00",
+    "nonce": "6f9c56e29007ea8ee141d317",
+    "user_request": "an official UGREEN 100W USB-C cable under 20 dollars",
+    "photo_observations": [],
+    "item": "UGREEN 100W USB-C cable",
+    "must": [
+      {
+        "id": "m1",
+        "clause": "official UGREEN brand"
+      },
+      {
+        "id": "m2",
+        "clause": "supports 100W power delivery"
+      },
+      {
+        "id": "m3",
+        "clause": "USB-C cable"
+      }
+    ],
+    "must_not": [
+      {
+        "id": "n1",
+        "clause": "third-party or counterfeit brand"
+      },
+      {
+        "id": "n2",
+        "clause": "rated below 100W"
+      },
+      {
+        "id": "n3",
+        "clause": "data-only or charge-limited cable"
+      }
+    ],
+    "max_total_cents": 2000,
+    "quantity": 1,
+    "returns": "preferred",
+    "search_query": "UGREEN 100W USB-C cable",
+    "summary": "You want an official UGREEN 100W USB-C cable for under 20 dollars.",
+    "assumptions": [
+      "No photo was provided, so specifications are derived solely from the typed request.",
+      "Quantity is assumed to be 1."
+    ],
+    "merchant": {
+      "policy": "any_verified",
+      "allow": [],
+      "deny": []
+    },
+    "currency": "USD",
+    "ships_to": "US",
+    "compiled_by": "gemini-4-neon",
+    "compile_attempts": [
+      {
+        "model": "gemini-4-neon",
+        "ok": true,
+        "latency_ms": 8573
+      }
+    ],
+    "signature": {
+      "alg": "Ed25519",
+      "key_id": "tripwire-demo-1",
+      "sig": "+PxRM9mbpwBtBtDI6ivy5FCXCGZsJGGDGQ+39AmnRyvyLKkH+rECZxNC04k+3vQcTUe/QHUnrRzhe1yquKVnBA=="
+    }
+  },
+  "compiled_by": "gemini-4-neon"
+}
