@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tripwire — Admin Control Panel</title>
+  <link rel="stylesheet" href="/assets/styles.css">
+</head>
+<body>
+  <div class="tripwire-tape"></div>
+  <div class="admin-shell">
+    <header class="admin-header">
+      <div class="brand">
+        <span>Tripwire</span>
+        <span class="pill pill-neutral">Control Panel · Local Only</span>
+      </div>
+      <div class="header-controls">
+        <button id="enforce-toggle" class="enforce-toggle on" type="button" aria-pressed="true">
+          <span class="switch-track"><span class="switch-thumb"></span></span>
+          <span id="enforce-label">Tripwire ON</span>
+        </button>
+        <button id="refresh-btn" class="btn-sm" type="button">Refresh</button>
+        <button id="theme-toggle" class="btn-sm" type="button">Theme</button>
+      </div>
+    </header>
+
+    <nav class="tabs" role="tablist" aria-label="Admin sections">
+      <button class="tab-btn active" data-tab="live" role="tab" type="button">Live</button>
+      <button class="tab-btn" data-tab="orders" role="tab" type="button">Orders</button>
+      <button class="tab-btn" data-tab="usage" role="tab" type="button">Usage</button>
+      <button class="tab-btn" data-tab="models" role="tab" type="button">Models</button>
+      <button class="tab-btn" data-tab="keys" role="tab" type="button">API keys</button>
+      <button class="tab-btn" data-tab="redteam" role="tab" type="button">Red-team</button>
+    </nav>
+
+    <main id="tab-content"></main>
+  </div>
+
+  <div id="toast" class="toast" hidden></div>
+  <script src="/admin/admin.js" defer></script>
+</body>
+</html>

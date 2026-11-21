@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tripwire — Your Request</title>
+  <link rel="stylesheet" href="../assets/styles.css">
+</head>
+<body>
+  <div class="tripwire-tape"></div>
+  <main class="shopper-shell">
+    <header class="topbar">
+      <div class="brand">
+        <span>Tripwire</span>
+        <span id="status-pill" class="pill pill-info">Loading…</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <span id="live-indicator" class="small muted" style="display:inline-flex;align-items:center;gap:6px;">
+          <span class="pulse-dot"></span> Live
+        </span>
+        <button id="theme-toggle" class="btn-sm" type="button" aria-label="Toggle color theme">Theme</button>
+      </div>
+    </header>
+
+    <section id="timeline" class="chat-timeline" aria-live="polite">
+      <div class="empty-state">Loading your Tripwire session…</div>
+    </section>
+  </main>
+
+  <script src="../assets/shopper.js" defer></script>
+</body>
+</html>
