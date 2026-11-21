@@ -33,7 +33,7 @@ Facts below are real, from `evals/out/results.md` and live runs. Don't add numbe
 7. **What's next.** **Tripwire for every agent (roadmap, not built today):** run Tripwire as an MCP server / tool hook
    so purchases made by Claude Code, Antigravity, or any MCP agent must pass the same contract + guard before a
    checkout exists. Say "next", never "works with" for this one. Ship-to from the shopper's Shop account (`get_account`), Shop spend permissions for delegated
-   payment, fewer human prompts by reading the refund policy at checkout. Install QR (`docs/qr-install-page.png`).
+   payment, fewer human prompts by reading the refund policy at checkout. Install QR (`docs/qr-install-page.png`), short link **tripwire-labs.vercel.app**.
 
 Design: dark navy + yellow/black hazard tape (same as the app). Big numbers, few words. Screenshots from
 `/r/{token}` and `/admin` (Red-team tab).

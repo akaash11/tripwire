@@ -31,6 +31,7 @@ CLI: `.venv/bin/python -m agent.run "a 100W USB-C cable under 20 dollars, return
 - A product link Shop's catalog doesn't list (Monday Cartoons sticker) is now resolved from the store itself:
   `/meta.json` → `myshopify_domain`, `/products.json` → exact variant; Shop `create_checkout` accepts it. Verified live:
   "Digital Sticker" from Monday Cartoons, $0.54 delivered, all clauses pass, ask_human (returns unknown). 44 tests pass.
+- Short link: https://tripwire-labs.vercel.app (Vercel project `short-link/`, redirects only: `/` → web buy page, `/install`, `/history`, everything else passes through to the Funnel URL). Live only while the laptop and Funnel run.
 - Install page advertises only Tripwire Buy (Check Shopify `.shortcut` still served, not linked).
 - Slowdown root cause (not fixed, after the demo): the guard runs before the delivery/budget quote, so each failed
   over-budget attempt costs a full 7 to 15 s guard run; the agent ignores delivers/within_budget hints.

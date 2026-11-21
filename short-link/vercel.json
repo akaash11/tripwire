@@ -1,0 +1,8 @@
+{
+  "redirects": [
+    { "source": "/", "destination": "https://akaashs-macbook-pro.tail3c0993.ts.net:10000/tripwire/buy", "permanent": false },
+    { "source": "/install", "destination": "https://akaashs-macbook-pro.tail3c0993.ts.net:10000/tripwire/install", "permanent": false },
+    { "source": "/history", "destination": "https://akaashs-macbook-pro.tail3c0993.ts.net:10000/tripwire/history", "permanent": false },
+    { "source": "/:path*", "destination": "https://akaashs-macbook-pro.tail3c0993.ts.net:10000/tripwire/:path*", "permanent": false }
+  ]
+}
