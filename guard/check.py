@@ -74,7 +74,7 @@ def check(contract: dict, cart: dict, products: list[dict]) -> dict:
 
     if verdict_name is None:
         messages = cart.get("merchant_messages") or cart.get("messages")
-        gate_result = gate.evaluate(contract, products, merchant_messages=messages)
+        gate_result = gate.evaluate(contract, products, merchant_messages=messages, cart=cart)
         decisions_stage = {
             "model": gate_result.get("model") or DECISIONS_MODEL,
             "clauses": gate_result.get("clauses") or {},

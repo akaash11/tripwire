@@ -21,6 +21,7 @@ from common.signing import sign, verify  # noqa: E402
 from guard import canary, canary_token, check, reduced, replay, scan_tool_args  # noqa: E402
 from guard.decisions import clause_questions  # noqa: E402
 from guard.gate import route  # noqa: E402
+from guard.refund import refund_policy_signal  # noqa: E402
 from guard.listing import input_blocks, listing_text  # noqa: E402
 from guard.replay import hash_cart  # noqa: E402
 
@@ -442,6 +443,48 @@ class GuardTests(unittest.TestCase):
             replayed = check(contract, honest, products)
             self.assertEqual(replayed["verdict"], "block")
             self.assertTrue(any("nonce" in r or "replay" in r for r in replayed["xray"]["reasons"]))
+
+    def test_unknown_returns_accept_refund_policy_link(self) -> None:
+        contract = {"must": [{"id": "m1", "clause": "100W"}], "must_not": [], "returns": "required"}
+        answers = {
+            "m1": {"noul": 0.97, "confidence": 0.97},
+            "injection": {"noul": 0.02, "confidence": 0.9},
+            "returns": {"choice": "unknown", "confidence": 0.9},
+        }
+        signal = {"url": "https://ugreenmall.myshopify.com/policies/refund-policy", "type": "refund_policy",
+                  "source": "product.links"}
+        self.assertEqual(route(contract, answers, refund_signal=signal)["verdict"], "approve")
+
+    def test_unknown_returns_escalate_without_refund_policy_link(self) -> None:
+        contract = {"must": [{"id": "m1", "clause": "100W"}], "must_not": [], "returns": "required"}
+        answers = {
+            "m1": {"noul": 0.97, "confidence": 0.97},
+            "injection": {"noul": 0.02, "confidence": 0.9},
+            "returns": {"choice": "unknown", "confidence": 0.9},
+        }
+        result = route(contract, answers)
+        self.assertEqual(result["verdict"], "escalate")
+        self.assertTrue(any("no refund-policy link" in r for r in result["reasons"]))
+
+    def test_final_sale_still_blocks_with_refund_policy_link(self) -> None:
+        contract = {"must": [{"id": "m1", "clause": "100W"}], "must_not": [], "returns": "required"}
+        answers = {
+            "m1": {"noul": 0.97, "confidence": 0.97},
+            "injection": {"noul": 0.02, "confidence": 0.9},
+            "returns": {"choice": "final_sale", "confidence": 0.96},
+        }
+        signal = {"url": "https://example.com/policies/refund-policy", "type": "refund_policy", "source": "cart.links"}
+        self.assertEqual(route(contract, answers, refund_signal=signal)["verdict"], "block")
+
+    def test_refund_policy_signal_reads_product_and_cart_links(self) -> None:
+        products = self.sample_products()
+        self.assertIsNone(refund_policy_signal(products))
+        products[0]["links"] = [{"type": "refund_policy", "url": "https://ugreen.myshopify.com/policies/refund-policy"}]
+        found = refund_policy_signal(products)
+        self.assertEqual(found["url"], "https://ugreen.myshopify.com/policies/refund-policy")
+        cart = {"links": [{"type": "refund_policy", "url": "https://shop.app/refund-policy"}]}
+        found = refund_policy_signal(self.sample_products(), cart=cart)
+        self.assertEqual(found["source"], "cart.links")
 
 
 if __name__ == "__main__":

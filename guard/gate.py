@@ -6,6 +6,7 @@ import concurrent.futures
 
 from .decisions import MODEL, ask, clause_questions
 from .listing import input_blocks
+from .refund import refund_policy_signal
 
 MUST_YES = 0.9
 MUST_CONF = 0.85
@@ -85,8 +86,12 @@ def _ask(blocks: list[dict], questions: dict, timeout_s: float) -> dict:
             raise TimeoutError(f"{MODEL} timed out after {timeout_s}s") from exc
 
 
-def route(contract: dict, answers: dict) -> dict:
-    """Apply TANU.md thresholds to an ask() result. Does not call the API."""
+def route(contract: dict, answers: dict, *, refund_signal: dict | None = None) -> dict:
+    """Apply TANU.md thresholds to an ask() result. Does not call the API.
+
+    If returns are required and Decision 1 says unknown, a pre-checkout refund-policy
+    link in Shop data can satisfy the clause. final_sale still blocks.
+    """
     must_ids = [c["id"] for c in (contract.get("must") or []) if isinstance(c, dict) and c.get("id")]
     must_not_ids = [c["id"] for c in (contract.get("must_not") or []) if isinstance(c, dict) and c.get("id")]
     reasons: list[str] = []
@@ -140,8 +145,16 @@ def route(contract: dict, answers: dict) -> dict:
             clear_fail = True
             reasons.append("returns: required but Decision 1 chose final_sale")
         elif choice == "unknown" or not choice:
-            approve_ok = False
-            reasons.append(f"returns: required but Decision 1 chose {choice or 'nothing'}")
+            url = (refund_signal or {}).get("url") if refund_signal else None
+            if url:
+                # Satisfied by a real Shop refund-policy link; do not add a failing reason.
+                pass
+            else:
+                approve_ok = False
+                reasons.append(
+                    f"returns: required but Decision 1 chose {choice or 'nothing'} "
+                    "(no refund-policy link in Shop data before checkout)"
+                )
         elif choice != "returnable":
             approve_ok = False
             reasons.append(f"returns: unexpected choice {choice}")
@@ -163,10 +176,12 @@ def route(contract: dict, answers: dict) -> dict:
     }
 
 
-def evaluate(contract: dict, products: list[dict] | None = None, merchant_messages=None) -> dict:
+def evaluate(contract: dict, products: list[dict] | None = None, merchant_messages=None,
+             cart: dict | None = None) -> dict:
     """Call ask() + clause_questions() and route. HTTP 400 → ask_human; other errors → escalate."""
     questions = clause_questions(contract or {})
     blocks = _blocks(products or [], merchant_messages)
+    signal = refund_policy_signal(products or [], cart=cart)
     try:
         answers = _ask(blocks, questions, ASK_TIMEOUT_S)
     except Exception as exc:
@@ -188,4 +203,7 @@ def evaluate(contract: dict, products: list[dict] | None = None, merchant_messag
             "error": reason,
             "model": MODEL,
         }
-    return route(contract or {}, answers)
+    result = route(contract or {}, answers, refund_signal=signal)
+    if signal:
+        result["refund_policy"] = signal
+    return result
