@@ -20,7 +20,7 @@ from fastapi.responses import JSONResponse
 
 import guard
 from common import load_env
-from server import config
+from server import config, persistence
 
 load_env()
 
@@ -30,13 +30,21 @@ UPLOADS.mkdir(exist_ok=True)
 
 app = FastAPI(title="Tripwire")
 
-# In-memory state for the POC. Replace with a small JSON/SQLite store if needed.
-STATE: dict = {"requests": [], "pending": None, "orders": [], "events": []}
-SESSIONS: dict = {}  # request_id -> agent.tools.ShopSession (holds the secret continue_url; never serialized)
+STATE: dict = {"requests": [], "pending": None, "orders": [], "events": [], "contracts": {}}
+SESSIONS: dict = {}   # request_id -> agent.tools.ShopSession (holds the secret continue_url; never serialized)
+SNAPSHOTS: dict = {}  # request_id -> sanitized read-only view (survives restarts; zero secrets)
+
+persistence.load_state(STATE, SNAPSHOTS)
+
+
+def persist() -> None:
+    """Atomically save sanitized STATE (never continue_url, checkout ids, signatures, or file paths)."""
+    persistence.save_state(STATE, SESSIONS, SNAPSHOTS)
 
 
 def event(kind: str, **data) -> None:
     STATE["events"].append({"ts": time.time(), "kind": kind, **data})
+    persist()
 
 
 @app.middleware("http")
@@ -89,6 +97,7 @@ async def process_request(req_id: str) -> None:
     files = r["files"]
     event("pipeline_started", request_id=req_id)
     r["status"] = "compiling_contract"
+    persist()
     try:
         contract = await asyncio.to_thread(
             compile_contract,
@@ -113,6 +122,7 @@ async def process_request(req_id: str) -> None:
     session = ShopSession(contract, on_event=emit)
     SESSIONS[req_id] = session
     r["status"] = "shopping"
+    persist()
     try:
         await asyncio.to_thread(run_agent, contract, session)
     except Exception as e:  # noqa: BLE001
@@ -129,6 +139,7 @@ async def process_request(req_id: str) -> None:
             r["offer"] = {"cart_id": ob["cart"]["cart_id"], "summary": ob["summary"],
                           "total_cents": ob["total_cents"], "budget_cents": ob["budget_cents"],
                           "budget_stated": bool(contract.get("budget_stated", True))}
+        persist()
         return
     r["status"] = v["verdict"]
     if session.pending_cart:
@@ -149,6 +160,7 @@ async def process_request(req_id: str) -> None:
                 "status": session.checkout.get("status") or "awaiting_payment",
                 "agent_summary": getattr(session, "agent_summary", None),
             })
+    persist()
 
 
 @app.post("/request")
@@ -208,6 +220,7 @@ async def decide(p: dict, decision: str) -> dict:
     if decision != "approve" or session is None:
         if req is not None:
             req["status"] = "block"
+        persist()
         return {"ok": True, "speak": "Blocked. Nothing was bought.", "url": ""}
     try:
         view = await asyncio.to_thread(session.open_checkout, session.carts[p["cart_id"]])
@@ -221,6 +234,7 @@ async def decide(p: dict, decision: str) -> dict:
     STATE["orders"].append({"cart_id": p["cart_id"], "request_id": p["request_id"], "ts": time.time(),
                             "checkout": view, "status": view.get("status") or "awaiting_payment",
                             "agent_summary": getattr(session, "agent_summary", None)})
+    persist()
     amount = f"${total.get('amount', 0)/100:.2f}" if total.get("amount") is not None else ""
     return {"ok": True, "url": session.continue_url or "",
             "speak": f"Approved. Opening the Shop checkout for {amount}. Pay there with Shop Pay."}
@@ -290,9 +304,10 @@ async def request_text(body: dict, request: Request):
         return JSONResponse({"error": "local only"}, status_code=403)
     req_id = "rq_" + uuid.uuid4().hex[:8]
     token = secrets.token_urlsafe(16)
+    client = re.sub(r"[^A-Za-z0-9 ._-]", "", str(body.get("client") or ""))[:40] or "local"
     STATE["requests"].append({"id": req_id, "ts": time.time(), "files": {}, "text": body.get("text", ""),
-                              "status": "received", "token": token})
-    event("request_received", request_id=req_id, text=body.get("text", ""))
+                              "status": "received", "token": token, "client": client})
+    event("request_received", request_id=req_id, text=body.get("text", ""), client=client)
     asyncio.create_task(process_request(req_id))
     return {"speak": "Got it.", "contract_id": req_id, "token": token, "view_url": f"/r/{token}"}
 

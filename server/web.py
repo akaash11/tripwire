@@ -21,26 +21,29 @@ def _find(token: str):
 
 @router.get("/w/{token}")
 async def web_status(token: str):
-    from server.app import STATE
+    from server.app import SNAPSHOTS, STATE
     r, s = _find(token)
     if not r:
         return JSONResponse({"error": "not found"}, status_code=404)
+    snap = SNAPSHOTS.get(r["id"]) or {}
     c = STATE.get("contracts", {}).get(r.get("contract_id")) if r.get("contract_id") else None
     out = {"status": r["status"], "client": r.get("client"), "server_version": VERSION, "contract": None, "pending": None, "verdict": None, "checkout": None,
-           "agent_summary": getattr(s, "agent_summary", None) if s else None, "problem": r.get("problem"),
+           "agent_summary": getattr(s, "agent_summary", None) if s else snap.get("agent_summary"), "problem": r.get("problem"),
            "offer": r.get("offer")}
     if c:
         out["contract"] = {k: c.get(k) for k in ("summary", "item", "must", "must_not", "max_total_cents",
                                                   "photo_observations", "compiled_by", "budget_stated")}
     if s and getattr(s, "contract", None) and s.contract.get("amended_by") == "shopper":
         out["contract"] = (out["contract"] or {}) | {"max_total_cents": s.contract["max_total_cents"], "budget_stated": True}
-    if s and s.verdict:
-        x = s.verdict.get("xray", {})
-        out["verdict"] = {"verdict": s.verdict["verdict"], "reasons": x.get("reasons", [])}
+    verdict = s.verdict if s else snap.get("verdict")
+    if verdict:
+        x = verdict.get("xray", {})
+        out["verdict"] = {"verdict": verdict["verdict"], "reasons": x.get("reasons", [])}
     if s and s.pending_cart:
         out["pending"] = {"cart_id": s.pending_cart["cart_id"], "summary": s.pending_cart["summary"]}
-    if s and s.checkout:
-        out["checkout"] = {k: s.checkout.get(k) for k in ("status", "totals", "lines", "messages", "links", "to_fill_on_shop")}
+    checkout = s.checkout if s else snap.get("checkout")
+    if checkout:
+        out["checkout"] = {k: checkout.get(k) for k in ("status", "totals", "lines", "messages", "links", "to_fill_on_shop")}
     return out
 
 
@@ -48,6 +51,7 @@ async def web_status(token: str):
 async def web_raise_budget(token: str, body: dict):
     """Shopper taps 'Raise budget' on their own request page. Only the cheapest quoted option, only by the shopper."""
     import asyncio
+    from server.app import STATE, persist
     r, s = _find(token)
     off = (r or {}).get("offer")
     if not r or not s or not off or off["cart_id"] != body.get("cart_id"):
@@ -55,7 +59,16 @@ async def web_raise_budget(token: str, body: dict):
     res = await asyncio.to_thread(s.raise_budget, off["cart_id"])
     if not res:
         return {"ok": False, "speak": "That option is no longer available."}
+    if r.get("contract_id") and getattr(s, "contract", None):
+        STATE.setdefault("contracts", {})[r["contract_id"]] = s.contract
     r["offer"], r["problem"], r["status"] = None, None, res["verdict"]
+    if s.pending_cart:
+        c = s.pending_cart
+        v = s.verdict or {}
+        STATE["pending"] = {"cart_id": c["cart_id"], "request_id": r["id"], "verdict": v.get("verdict"),
+                            "summary": f"Agent wants: {c['summary']}. You asked: {s.contract.get('summary')}",
+                            "reason": "; ".join(v.get("xray", {}).get("reasons", []))[:300]}
+    persist()
     return {"ok": res["verdict"] != "block", "speak": res.get("reason") or "Budget raised. Review and approve."}
 
 

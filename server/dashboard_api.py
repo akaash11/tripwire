@@ -57,9 +57,19 @@ def _find_request_by_id(req_id: str) -> dict | None:
 
 def _safe_photo_path(r: dict) -> tuple[pathlib.Path, str] | None:
     photo = (r.get("files") or {}).get("photo")
-    if not photo or not photo.get("path"):
+    if not photo:
         return None
-    p = pathlib.Path(photo["path"]).resolve()
+    p: pathlib.Path | None = None
+    if photo.get("path"):
+        p = pathlib.Path(photo["path"]).resolve()
+    else:
+        req_id = r.get("id")
+        if req_id and UPLOADS_DIR.is_dir():
+            matches = sorted(UPLOADS_DIR.glob(f"{req_id}_photo*"))
+            if matches:
+                p = matches[0].resolve()
+    if p is None:
+        return None
     try:
         p.relative_to(UPLOADS_DIR)
     except ValueError:
@@ -78,11 +88,12 @@ def sanitize_contract(c: dict | None, *, include_attempts: bool = False) -> dict
         return None
     keep = (
         "contract_id", "created_at", "expires_at", "summary", "user_request", "item",
-        "must", "must_not", "max_total_cents", "quantity", "returns", "currency",
+        "must", "must_not", "max_total_cents", "budget_stated", "amended_by",
+        "quantity", "returns", "currency",
         "ships_to", "photo_observations", "compiled_by", "assumptions", "search_query",
     )
     out = {k: c.get(k) for k in keep if k in c}
-    out["signed"] = bool(c.get("signature"))
+    out["signed"] = bool(c.get("signature") or c.get("signed"))
     if include_attempts:
         out["compile_attempts"] = c.get("compile_attempts") or []
     return out
@@ -101,13 +112,14 @@ def sanitize_verdict(v: dict | None, *, admin: bool = False) -> dict | None:
             "reason": reasons[0] if reasons else "",
             "reasons": reasons,
             "asked_for": xray.get("asked_for", ""),
+            "hidden_in_listing": xray.get("hidden_in_listing", ""),
             "agent_tried": xray.get("agent_tried", ""),
         }
     receipt = v.get("receipt")
     safe_receipt = None
     if isinstance(receipt, dict):
         safe_receipt = {k: val for k, val in receipt.items() if k != "signature"}
-        safe_receipt["signed"] = bool(receipt.get("signature"))
+        safe_receipt["signed"] = bool(receipt.get("signature") or receipt.get("signed"))
     return {
         "verdict": v.get("verdict"),
         "contract_id": v.get("contract_id"),
@@ -129,20 +141,39 @@ def sanitize_checkout(c: dict | None) -> dict | None:
     """Return checkout view strictly without checkout id or continue_url."""
     if not c:
         return None
-    keep = ("cart_id", "shop_name", "status", "currency", "lines", "totals", "messages", "links", "order", "expires_at")
+    keep = (
+        "cart_id", "shop_name", "status", "currency", "lines", "totals",
+        "messages", "to_fill_on_shop", "links", "order", "expires_at",
+    )
     return {k: c.get(k) for k in keep if k in c}
 
 
-def _safe_shopper_events(req_id: str) -> list[dict]:
+def _collect_req_carts(req_id: str, sess, snap: dict | None) -> set[str]:
     from server.app import STATE
 
+    carts = set(sess.carts.keys()) if sess else set()
+    if snap:
+        for c in snap.get("carts") or []:
+            if isinstance(c, dict) and c.get("cart_id"):
+                carts.add(c["cart_id"])
+    for ev in STATE["events"]:
+        if ev.get("request_id") == req_id and ev.get("cart_id"):
+            carts.add(ev["cart_id"])
+    return carts
+
+
+def _safe_shopper_events(req_id: str) -> list[dict]:
+    from server.app import SESSIONS, SNAPSHOTS, STATE
+
     allowed_fields: dict[str, tuple[str, ...]] = {
-        "request_received": ("text",),
+        "request_received": ("text", "client"),
         "pipeline_started": (),
         "contract_ready": ("summary", "compiled_by"),
         "contract_failed": ("error",),
         "search": ("query", "results", "top_titles"),
         "cart": ("cart_id", "summary", "title", "price_cents", "currency", "seller", "quantity", "image_url", "product_url"),
+        "delivery_check": ("cart_id", "ok", "reason", "summary"),
+        "budget_raised": ("cart_id", "new_budget_cents", "old_budget_cents", "verdict"),
         "verdict": ("cart_id", "verdict", "enforced", "reason"),
         "checkout_created": ("cart_id", "status", "totals"),
         "checkout_refreshed": ("cart_id", "status", "has_order"),
@@ -152,11 +183,9 @@ def _safe_shopper_events(req_id: str) -> list[dict]:
         "agent_failed": ("error",),
     }
     out = []
-    # Also include human_decision / checkout_failed matched by cart_id belonging to this request.
-    from server.app import SESSIONS
-
     sess = SESSIONS.get(req_id)
-    req_carts = set(sess.carts.keys()) if sess else set()
+    snap = SNAPSHOTS.get(req_id)
+    req_carts = _collect_req_carts(req_id, sess, snap)
 
     for ev in STATE["events"]:
         ev_req = ev.get("request_id")
@@ -228,35 +257,43 @@ async def shopper_page(token: str):
 
 @router.get("/r/{token}/events")
 async def shopper_events(token: str):
-    from server.app import SESSIONS, STATE
+    from server.app import SESSIONS, SNAPSHOTS, STATE
 
     r = _find_request_by_token(token)
     if not r:
         return JSONResponse({"error": "not found"}, status_code=404)
     req_id = r["id"]
     sess = SESSIONS.get(req_id)
+    snap = SNAPSHOTS.get(req_id) or {}
     contract = STATE.get("contracts", {}).get(r.get("contract_id")) if r.get("contract_id") else None
+    if sess and getattr(sess, "contract", None) and sess.contract.get("amended_by") == "shopper":
+        contract = sess.contract
     pending_global = STATE.get("pending")
     pending_approval = bool(
         (sess and sess.pending_cart)
         or (pending_global and pending_global.get("request_id") == req_id)
     )
+    picked = _picked_product(sess) if sess else snap.get("picked")
+    verdict_raw = sess.verdict if sess else snap.get("verdict")
+    checkout_raw = sess.checkout if sess else snap.get("checkout")
+    agent_summary = getattr(sess, "agent_summary", None) if sess else snap.get("agent_summary")
     return {
         "request": {
             "id": req_id,
             "ts": r.get("ts"),
             "status": r.get("status"),
+            "client": r.get("client"),
             "has_photo": _safe_photo_path(r) is not None,
             "has_audio": bool((r.get("files") or {}).get("audio")),
             "text": r.get("text"),
             "pay_ready": bool((sess and sess.continue_url) or r.get("pay_ready")),
         },
         "contract": sanitize_contract(contract, include_attempts=False),
-        "picked": _picked_product(sess),
-        "verdict": sanitize_verdict(sess.verdict if sess else None, admin=False),
-        "checkout": sanitize_checkout(sess.checkout if sess else None),
+        "picked": picked,
+        "verdict": sanitize_verdict(verdict_raw, admin=False),
+        "checkout": sanitize_checkout(checkout_raw),
         "pending_approval": pending_approval,
-        "agent_summary": getattr(sess, "agent_summary", None) if sess else None,
+        "agent_summary": agent_summary,
         "events": _safe_shopper_events(req_id),
     }
 
@@ -313,36 +350,47 @@ async def admin_live(request: Request):
     denied = _deny_if_remote(request)
     if denied:
         return denied
-    from server.app import SESSIONS, STATE
+    from server.app import SESSIONS, SNAPSHOTS, STATE
 
     items = []
     for r in reversed(STATE["requests"]):
         req_id = r["id"]
         sess = SESSIONS.get(req_id)
+        snap = SNAPSHOTS.get(req_id) or {}
         contract = STATE.get("contracts", {}).get(r.get("contract_id")) if r.get("contract_id") else None
-        req_carts = set(sess.carts.keys()) if sess else set()
+        if sess and getattr(sess, "contract", None) and sess.contract.get("amended_by") == "shopper":
+            contract = sess.contract
+        req_carts = _collect_req_carts(req_id, sess, snap)
         req_events = [
             ev for ev in STATE["events"]
             if ev.get("request_id") == req_id or (ev.get("request_id") is None and ev.get("cart_id") in req_carts)
         ]
         token = r.get("token")
+        picked = _picked_product(sess) if sess else snap.get("picked")
+        carts = list(sess.carts.values()) if sess else (snap.get("carts") or [])
+        verdict_raw = sess.verdict if sess else snap.get("verdict")
+        checkout_raw = sess.checkout if sess else snap.get("checkout")
+        agent_summary = getattr(sess, "agent_summary", None) if sess else snap.get("agent_summary")
         items.append({
             "id": req_id,
             "ts": r.get("ts"),
             "status": r.get("status"),
+            "client": r.get("client"),
             "text": r.get("text"),
+            "problem": r.get("problem"),
+            "offer": r.get("offer"),
             "has_photo": _safe_photo_path(r) is not None,
             "has_audio": bool((r.get("files") or {}).get("audio")),
             "view_url": f"/r/{token}" if token else None,
             "photo_url": f"/api/admin/requests/{req_id}/photo" if _safe_photo_path(r) else None,
             "pay_ready": bool((sess and sess.continue_url) or r.get("pay_ready")),
             "contract": sanitize_contract(contract, include_attempts=True),
-            "picked": _picked_product(sess),
-            "carts": list(sess.carts.values()) if sess else [],
-            "verdict": sanitize_verdict(sess.verdict if sess else None, admin=True),
-            "checkout": sanitize_checkout(sess.checkout if sess else None),
+            "picked": picked,
+            "carts": carts,
+            "verdict": sanitize_verdict(verdict_raw, admin=True),
+            "checkout": sanitize_checkout(checkout_raw),
             "pending_cart": sess.pending_cart if sess else None,
-            "agent_summary": getattr(sess, "agent_summary", None) if sess else None,
+            "agent_summary": agent_summary,
             "events": req_events,
         })
 
@@ -447,6 +495,8 @@ async def admin_order_refresh(cart_id: str, request: Request):
     order["checkout"] = view
     if view.get("status"):
         order["status"] = view["status"]
+    from server.app import persist
+    persist()
     return {"ok": True, "order": _order_payload(order)}
 
 
