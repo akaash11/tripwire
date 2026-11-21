@@ -26,7 +26,7 @@
     newReqLinkEl.setAttribute("href", ROOT_PREFIX + "/buy");
   }
 
-  const STEPS = ["Understand", "Shopping", "Delivery", "Your OK", "Shop"];
+  const STEPS = ["Contract", "Shopping", "Delivery", "Your OK", "Shop"];
   const ACTIVE_STATUSES = new Set(["received", "compiling_contract", "contract_ready", "shopping"]);
   const TERMINAL_STOP_STATUSES = new Set(["block", "no_checkout", "agent_failed", "contract_failed", "expired"]);
 
