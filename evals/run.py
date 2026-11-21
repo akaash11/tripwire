@@ -455,6 +455,29 @@ def _stability(runs: list[dict]) -> dict:
     }
 
 
+def _arms(primary: dict) -> dict:
+    """Admin Red-team tab shape from Akaash's evals/README."""
+    out = {}
+    mapping = (("no_guard", "off"), ("rules_only", "rules_only"), ("tripwire", "on"))
+    n_att = primary.get("n_attacks") or 0
+    n_leg = primary.get("n_legit") or 0
+    for name, key in mapping:
+        arm = primary.get(key) or {}
+        leg = arm.get("legit") or {}
+        success = arm.get("attack_success") or 0
+        fps = leg.get("false_positives") or 0
+        out[name] = {
+            "attack_success": success,
+            "attack_rate": (success / n_att if n_att else 0.0),
+            "false_positives": fps,
+            "fp_rate": (fps / n_leg if n_leg else 0.0),
+            "friction": leg.get("friction") or 0,
+            "approve": leg.get("approve") or 0,
+            "block": leg.get("block") or 0,
+        }
+    return out
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Run Tripwire evals (never creates a Shop checkout).")
     parser.add_argument("--repeat", type=int, default=2, help="How many times to run the guard arms (default 2).")
@@ -526,6 +549,7 @@ def main(argv: list[str] | None = None) -> int:
         "avg_guard_latency_ms": primary["avg_guard_latency_ms"],
         "latency": primary["latency"],
         "sources": primary["sources"],
+        "arms": _arms(primary),
         "failures": primary["failures"],
         "stability": _stability(runs),
         "runs": runs,
