@@ -1,0 +1,109 @@
+{
+  "id": "gid://shopify/p/2uakD9RwLznpbcHLOfH5bs",
+  "title": "Apple 30W USB-C Power Adapter Wall Charger - White (MY1W2AM/A, A2164)",
+  "description": {
+    "plain": "The Apple 30-Watt USB-C Power Adapter Wall Charger. White version. Model: (MY1W2AM/A, A2164).<br>\r\n<br>\r\nFeatures:<br>\r\n- The Apple 30W USB\u2011C Power Adapter offers fast, efficient charging at home, in the office, or on the go.<br>\r\n- While the power adapter is compatible with any USB\u2011C\u2013enabled device, Apple recommends pairing it with the 13-inch MacBook Air with Retina display for optimal charging performance.<br>\r\n- You can also pair it with select iPhone and iPad Pro models to take advantage of the fast-charging feature."
+  },
+  "handle": "app701999686",
+  "media": [
+    {
+      "type": "image",
+      "url": "https://cdn.shopify.com/s/files/1/0306/1642/0487/files/w99686-2__1.jpg",
+      "alt_text": "Apple 30W USB-C Power Adapter Wall Charger - White (MY1W2AM/A, A2164)",
+      "preview": {
+        "url": "https://cdn.shopify.com/s/files/1/0306/1642/0487/files/w99686-2__1.jpg",
+        "width": 1200,
+        "height": 1200
+      },
+      "width": 1200,
+      "height": 1200
+    }
+  ],
+  "options": [
+    {
+      "name": "Condition",
+      "values": [
+        {
+          "label": "Grade A"
+        }
+      ]
+    }
+  ],
+  "metadata": {
+    "unique_selling_points": [
+      "Delivers rapid charging for Apple and select USB C devices with a compact, travel-friendly design."
+    ],
+    "top_features": [
+      "30W USB C output enables rapid charging for compatible devices",
+      "Compact wall charger design fits easily in bags for travel convenience",
+      "Compatible with Apple devices and select USB C smartphones for versatile use",
+      "Efficient power delivery ensures reliable charging at home or on the go"
+    ]
+  },
+  "variants": [
+    {
+      "id": "gid://shopify/ProductVariant/42376513683706",
+      "title": "Apple 30W USB-C Power Adapter Wall Charger - White (MY1W2AM/A, A2164)",
+      "description": {
+        "plain": "The Apple 30-Watt USB-C Power Adapter Wall Charger. White version. Model: (MY1W2AM/A, A2164).<br>\r\n<br>\r\nFeatures:<br>\r\n- The Apple 30W USB\u2011C Power Adapter offers fast, efficient charging at home, in the office, or on the go.<br>\r\n- While the power adapter is compatible with any USB\u2011C\u2013enabled device, Apple recommends pairing it with the 13-inch MacBook Air with Retina display for optimal charging performance.<br>\r\n- You can also pair it with select iPhone and iPad Pro models to take advantage of the fast-charging feature."
+      },
+      "handle": "app701999686",
+      "url": "https://simplecellshop.com/products/app701999686?variant=42376513683706&_gsid=AXzxck2fDKCz&utm_source=shopify&utm_medium=catalog",
+      "seller_product_id": "gid://shopify/Product/7494541639930",
+      "price": {
+        "amount": 1495,
+        "currency": "USD"
+      },
+      "availability": {
+        "available": true
+      },
+      "options": [
+        {
+          "name": "Condition",
+          "label": "Open Box"
+        }
+      ],
+      "media": [
+        {
+          "type": "image",
+          "url": "https://cdn.shopify.com/s/files/1/0306/1642/0487/files/w99686-2__1.jpg",
+          "alt_text": "Apple 30W USB-C Power Adapter Wall Charger - White (MY1W2AM/A, A2164)",
+          "preview": {
+            "url": "https://cdn.shopify.com/s/files/1/0306/1642/0487/files/w99686-2__1.jpg",
+            "width": 1200,
+            "height": 1200
+          },
+          "width": 1200,
+          "height": 1200
+        }
+      ],
+      "seller": {
+        "id": "gid://shopify/Shop/30616420487",
+        "name": "Simple Cell Shop",
+        "url": "https://simplecellshop.com",
+        "domain": "simple-cell-inc-shop.myshopify.com"
+      },
+      "checkout_url": "https://simplecellshop.com/buy/42376513683706:1?ucp/version=2026-08-25&attribution/utm_source=shopify&attribution/utm_medium=catalog&attribution/click_id_tag=_gsid&attribution/click_id_value=AXzxck2fDKCz&_gsid=AXzxck2fDKCz&context/payment/0/handler=dev.shopify.shop_pay",
+      "rating": {
+        "value": 5.0,
+        "scale_min": 1,
+        "scale_max": 5,
+        "count": 1
+      },
+      "condition": [
+        "new"
+      ],
+      "source": "shopify"
+    }
+  ],
+  "price_range": {
+    "min": {
+      "amount": 1495,
+      "currency": "USD"
+    },
+    "max": {
+      "amount": 1495,
+      "currency": "USD"
+    }
+  }
+}
