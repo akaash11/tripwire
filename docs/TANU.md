@@ -51,3 +51,13 @@ and keep the canary + Neon as the second line. This is a good "where it still fa
 
 ## Not yours (Akaash / Antigravity)
 Server, phone Shortcuts, agent loop, Shop checkout, dashboard + admin page.
+
+## Round 2 (after PR #1 merged, 13:30)
+Merged with one change: the nonce is now consumed in `agent/tools.open_checkout` (when the shopper gets the checkout),
+not in `check()` on approve. Reason: after the guard approves, the delivered-price quote can still reject the store
+(can't deliver / over budget) and the agent must try another seller; before, every retry was blocked as a replay.
+Your two replay tests were updated to consume at handover; 39/39 pass.
+1. **Deck** ([`PRESENTATION.md`](PRESENTATION.md)): 7 slides, numbers from `evals/out/results.md`.
+2. `photo_match` isn't called from `check()` yet: pass the shopper's photo (request `files.photo`) and the product image.
+3. Friction: after `quote()` the checkout view has `links` with `refund_policy`; use it in `final_check` so legit buys
+   with a real refund policy approve instead of asking a human.

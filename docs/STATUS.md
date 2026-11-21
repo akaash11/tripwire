@@ -26,7 +26,25 @@ Run: `.venv/bin/uvicorn server.app:app --host 127.0.0.1 --port 8790` · typed te
 `curl -X POST localhost:8790/request_text -H 'content-type: application/json' -d '{"text":"..."}'` then `GET /pending`, `POST /approve`.
 CLI: `.venv/bin/python -m agent.run "a 100W USB-C cable under 20 dollars, returnable"`.
 
-## Not done yet (priority order)
+## Stable v1.0 (13:30) and what's left
+**v1.0 (tag `v1.0`):** phone Shortcut v1.4 + `/buy` → Neon contract → agent on Shop MCP → Tanu's guard (policy, canary,
+Decisions per clause, Neon checker, receipts, replay) → delivered-price + delivery quote with seller retry → shopper
+approves or raises budget → merchant's real Shop checkout. 39 unit tests pass. Evals: Tripwire 0/23 attacks, rules-only
+10/23, no guard 23/23 (2 runs). Install: `/install` (QR), `docs/qr-*.png`. Deck + video plan: [`PRESENTATION.md`](PRESENTATION.md).
+Fixed at merge: the guard used the nonce up on approve, so after a failed delivery quote every other seller was
+blocked as a replay; now the nonce is consumed when the checkout is handed to the shopper (`open_checkout`).
+
+**Left, in order (freeze 3:30):**
+1. Antigravity round 2 (running): one shopper page `/r/{token}` with Approve / Raise budget; `/t` and `/buy` redirect.
+2. Tanu: wire `photo_match` into `check()` (shopper photo vs product image; exists in `guard/photo.py`, not called yet).
+3. Tanu: cut friction (7/12 legit ask a human): after the quote, the checkout has a `refund_policy` link, so re-run the
+   returns rule in `final_check` and approve when it's there.
+4. Storage: `data/state.json` (Antigravity) works for the demo; SQLite after the event.
+5. Deck (Tanu) + 1-min video (both), submit by 4:45; make the repo public.
+6. After the event: ship-to from Shop `get_account`; per-user Approve shortcut; quarantine stage is a stub (search
+   results are already stripped in `agent/tools.py`).
+
+## Not done yet (older list)
 **Next (UI, Antigravity):** one shopper page. `/r/{token}` gets the actions (Approve, Raise budget), `/t/{token}` and
 `/buy` redirect to it, and STATE persists across restarts. Prompt: [`prompts/ANTIGRAVITY_SHOPPER_UI.md`](prompts/ANTIGRAVITY_SHOPPER_UI.md).
 

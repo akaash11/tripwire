@@ -183,3 +183,46 @@ async def track_page(token: str):
     if not re.fullmatch(r"[A-Za-z0-9_-]{16,40}", token) or not _find(token)[0]:
         return HTMLResponse("<p>Request not found.</p>", status_code=404)
     return PAGE.replace("__TOKEN__", token).replace("__VERSION__", VERSION)
+
+
+PUBLIC_BASE = "https://akaashs-macbook-pro.tail3c0993.ts.net:10000/tripwire"  # Funnel; override with TRIPWIRE_PUBLIC_BASE
+
+
+def _qr_svg(url: str) -> str:
+    import io
+
+    import qrcode
+    import qrcode.image.svg
+    buf = io.BytesIO()
+    qrcode.make(url, image_factory=qrcode.image.svg.SvgPathFillImage, box_size=10, border=2).save(buf)
+    return buf.getvalue().decode().split("?>", 1)[-1]  # drop the XML header so it can be inlined
+
+
+@router.get("/install", response_class=HTMLResponse)
+async def install_page():
+    """Scan with the iPhone camera: Safari downloads the signed Shortcut and Shortcuts shows 'Add Shortcut'."""
+    import os
+    from html import escape
+    base = os.environ.get("TRIPWIRE_PUBLIC_BASE", PUBLIC_BASE).rstrip("/")
+    buy, web = f"{base}/shortcuts/buy", f"{base}/buy"
+    return f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>Install Tripwire</title><style>
+:root{{--bg:#f4f5f7;--card:#fff;--ink:#14213d;--muted:#5b667a;--accent:#e3a400}}
+@media (prefers-color-scheme:dark){{:root{{--bg:#0f1626;--card:#18223a;--ink:#e7ecf4;--muted:#9aa7be;--accent:#f2bc2e}}}}
+body{{margin:0;background:var(--bg);color:var(--ink);font:17px/1.45 system-ui,-apple-system,sans-serif}}
+main{{max-width:60rem;margin:0 auto;padding:16px}}.tape{{height:10px;margin:.4rem 0 1rem;background:repeating-linear-gradient(-45deg,var(--accent) 0 14px,var(--ink) 14px 28px)}}
+.grid{{display:grid;grid-template-columns:repeat(auto-fit,minmax(16rem,1fr));gap:16px}}
+.card{{background:var(--card);border-radius:14px;padding:18px;text-align:center}}
+.qr{{background:#fff;border-radius:10px;padding:10px;display:inline-block;width:min(100%,280px)}}.qr svg{{width:100%;height:auto;display:block}}
+a{{color:inherit;word-break:break-all}}.muted{{color:var(--muted)}}ol{{text-align:left}}</style></head><body><main>
+<h1>Tripwire</h1><div class="tape"></div>
+<div class="grid">
+<div class="card"><h2>1 · Install the Shortcut</h2><div class="qr">{_qr_svg(buy)}</div>
+<ol><li>Scan with the iPhone Camera, tap the link.</li><li>Safari downloads it, Shortcuts opens: tap <b>Add Shortcut</b>.</li>
+<li>Run <b>Tripwire Buy</b> (or "Hey Siri, Tripwire Buy"): say what you want, take a photo.</li></ol>
+<p class="muted"><a href="{escape(buy)}">{escape(buy)}</a></p></div>
+<div class="card"><h2>2 · Or no install</h2><div class="qr">{_qr_svg(web)}</div>
+<p>Opens the Tripwire page in Safari: photo, voice or text.</p><p class="muted"><a href="{escape(web)}">{escape(web)}</a></p></div>
+</div>
+<p class="muted">You pay on the store's own Shop checkout page: a real order with real money. To test, stop at that page.</p>
+</main></body></html>"""
