@@ -12,7 +12,8 @@ Update this file when you finish something. Real results only; mark anything not
 | Shop MCP | `agent/shop_mcp.py` | Live `search_catalog`; real `create_checkout` (no order placed) returns totals, `messages`, `links` incl. refund policy, `continue_url` on shop.app |
 | Agent | `agent/run.py`, `agent/tools.py` | Antigravity managed agent on `gemini-3.5-flash-lite`, ONLY 3 custom functions. Typed "100W USB-C cable under $20, returnable" → search → INIU 100W $14.99 → `request_checkout` → guard → ~23s |
 | Approval → real checkout | `server/app.py` `/pending`, `/approve` | Approve creates the real Shop checkout and returns `url` (shop.app) + "Opening the Shop checkout for $14.99" |
-| Phone approve | Tripwire Approve shortcut | Shows agent's pick vs your request → Approve/Block → opens the Shop checkout link (rebuilt, needs re-import on the phone) |
+| Phone approve | Tripwire Approve shortcut | Shows agent's pick vs your request → Approve/Block → opens the Shop checkout link. Rebuilt after a bad-URL bug (zsh passed URL + folder as one arg → phone hit `POST /` → 404); generator now refuses bad URLs |
+| Decisions API helper | `guard/decisions.py` | `ask()` + `clause_questions()`: 4 questions in ~0.6s (needs v1beta). Planted-instruction listing scored injection only 0.28, so escalate above 0.1 |
 | Hardening | `server/app.py` | Dashboard/state and typed requests are local-only (tailnet + forwarded requests refused); 10 req/min; 15 MB upload cap |
 
 Run: `.venv/bin/uvicorn server.app:app --host 127.0.0.1 --port 8790` · typed test:
@@ -20,12 +21,11 @@ Run: `.venv/bin/uvicorn server.app:app --host 127.0.0.1 --port 8790` · typed te
 CLI: `.venv/bin/python -m agent.run "a 100W USB-C cable under 20 dollars, returnable"`.
 
 ## Not done yet (priority order)
-1. **Guard (Tanu): `guard/check()` is still a stub that always returns `ask_human`.** Build: policy backstop → canary → Decision 1 per clause → Neon checker on escalation. Keep the verdict shape.
-2. **Decisions API in the guard** (design below). This is 20% of judging.
+1. **Guard (Tanu): `guard/check()` is still a stub that always returns `ask_human`.** Her task list: [`TANU.md`](TANU.md). Policy backstop → Decision 1 per clause (helper ready) → canary → Neon checker. Keep the verdict shape.
+2. **Web pages (Antigravity):** shopper chat page `/r/{token}` + local-only `/admin` (Live, Orders, Usage, Models, API keys, Red-team). Prompt: [`prompts/ANTIGRAVITY_DASHBOARD.md`](prompts/ANTIGRAVITY_DASHBOARD.md).
 3. **Re-check the real checkout** before handing over the link: checkout total ≤ `max_total_cents`, payee unchanged, warnings shown, refund policy link present when `returns: required`.
 4. **Per-user sessions** so judges don't share one pending cart (key requests by a device id the Shortcut sends).
 5. **Public install** via Tailscale Funnel (Akaash must enable it in the admin console), then `/shortcuts/buy` and `/shortcuts/approve` work for anyone.
-6. **Dashboard** (`dashboard/`): Live, Orders, Usage, Red-team, API keys. Reads `GET /api/state` (local only).
 7. **Red-team harness** (`evals/`): Carbon attacks + outside examples; baselines (no guard, rules-only) vs Tripwire; list failures.
 8. After payment: poll `get_checkout` to show `completed` + `order` (only that confirms a purchase).
 

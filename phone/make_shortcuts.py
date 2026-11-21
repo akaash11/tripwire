@@ -143,6 +143,8 @@ def main() -> None:
     if len(sys.argv) not in (2, 3) or not sys.argv[1].startswith("https://"):
         sys.exit("usage: make_shortcuts.py https://<host>/tripwire [out_dir]")
     base = sys.argv[1].rstrip("/")
+    if any(ch.isspace() for ch in base) or not base.endswith("/tripwire"):
+        sys.exit(f"bad base URL {base!r}: must be https://<host>[:port]/tripwire with no spaces")
     out = pathlib.Path(sys.argv[2]) if len(sys.argv) == 3 else OUT
     out.mkdir(parents=True, exist_ok=True)
     for name, acts, color, glyph in (("Tripwire Buy", buy(base), 4282601983, 59511),
