@@ -21,8 +21,8 @@ import sys
 import uuid
 
 OUT = pathlib.Path(__file__).parent / "build"
-VERSION = "1.6"  # bump on every rebuild; Buy sends it as form field `client`, the page shows it
-# 1.0 first build · 1.1 file upload fix · 1.2 Buy opens /t/{token} · 1.3 version field, delivered-price quote · 1.4 shopper can raise budget · 1.6 'Check Shopify' Siri name
+VERSION = "1.7"  # bump on every rebuild; Buy sends it as form field `client`, the page shows it
+# 1.0 first build · 1.1 file upload fix · 1.2 Buy opens /t/{token} · 1.3 version field, delivered-price quote · 1.4 shopper can raise budget · 1.6 'Check Shopify' Siri name · 1.7 off-catalog Shopify links
 
 
 def new_id() -> str:
