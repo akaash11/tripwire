@@ -11,7 +11,7 @@ from common.signing import sign
 from . import canary, gate, neon
 from .listing import listing_text
 from .policy import check_policy
-from .replay import hash_cart, intent_hash, utc_now_iso
+from .replay import consume_nonce, hash_cart, intent_hash, utc_now_iso
 
 
 def enforced() -> bool:
@@ -57,7 +57,7 @@ def check(contract: dict, cart: dict, products: list[dict]) -> dict:
     hidden = ""
     verdict_name: str | None = None
 
-    policy_stage = check_policy(contract, cart)
+    policy_stage = check_policy(contract, cart, products)
     if not policy_stage["pass"]:
         reasons.extend(policy_stage["failures"])
         verdict_name = "block"
@@ -111,6 +111,7 @@ def check(contract: dict, cart: dict, products: list[dict]) -> dict:
     receipt = None
     if verdict_name == "approve":
         receipt = _issue_receipt(contract, cart)
+        consume_nonce(contract.get("nonce"))
         if not reasons:
             reasons = ["all contract clauses passed Decision 1; policy and signature checks passed"]
 

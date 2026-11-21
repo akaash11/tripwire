@@ -89,8 +89,22 @@ def _persist_nonces() -> None:
     path.write_text(json.dumps(sorted(_load_nonces())), encoding="utf-8")
 
 
+def consume_nonce(nonce: str | None) -> None:
+    """Record a nonce only after an approved receipt is issued."""
+    if not nonce:
+        return
+    store = _load_nonces()
+    token = str(nonce)
+    if token not in store:
+        store.add(token)
+        _persist_nonces()
+
+
 def verify_contract(contract: dict, *, now: datetime | None = None) -> tuple[bool, str]:
-    """Validate signature, expiry, and nonce. Records the nonce on success."""
+    """Validate signature, expiry, and that the nonce is not already used for an approved receipt.
+
+    Does not record the nonce. Call consume_nonce() only after issuing a receipt.
+    """
     if not isinstance(contract, dict) or not contract:
         return False, "contract: missing"
     if not verify(contract):
@@ -113,6 +127,4 @@ def verify_contract(contract: dict, *, now: datetime | None = None) -> tuple[boo
     nonce = str(nonce)
     if nonce in _load_nonces():
         return False, "contract: nonce already used (replay)"
-    _load_nonces().add(nonce)
-    _persist_nonces()
     return True, ""
