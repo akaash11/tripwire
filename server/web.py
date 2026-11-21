@@ -41,7 +41,9 @@ async def web_status(token: str):
     verdict = s.verdict if s else snap.get("verdict")
     if verdict:
         x = verdict.get("xray", {})
-        out["verdict"] = {"verdict": verdict["verdict"], "reasons": x.get("reasons", [])}
+        from common.plain import plain_reasons
+        out["verdict"] = {"verdict": verdict["verdict"],
+                          "reasons": plain_reasons(x.get("reasons", []), (s.contract if s else None) or c)}
     if s and s.pending_cart:
         out["pending"] = {"cart_id": s.pending_cart["cart_id"], "summary": s.pending_cart["summary"]}
     checkout = s.checkout if s else snap.get("checkout")

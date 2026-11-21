@@ -27,7 +27,12 @@ Facts below are real, from `evals/out/results.md` and live runs. Don't add numbe
    at only 0.28 injection, which is why the canary + Neon are second lines; `check()` p50 ~3 to 7 s.
 6. **Real purchase.** Live demo screenshots: phone Shortcut → live page → "everything is over your budget, raise to
    $31.56?" (only the shopper can) → merchant's Shop checkout with address + payment. We never complete checkout.
-7. **What's next.** Ship-to from the shopper's Shop account (`get_account`), Shop spend permissions for delegated
+6b. **Built on Google's agent stack (true today).** The shopping agent IS an **Antigravity managed agent**
+   (`antigravity-preview-09-2026` through the Gemini Interactions API) with only Tripwire's 2 tools. We built the app
+   with **Antigravity** (shopper page + admin) and **Claude Code** (server, Shop MCP, Shortcuts, merges), in parallel.
+7. **What's next.** **Tripwire for every agent (roadmap, not built today):** run Tripwire as an MCP server / tool hook
+   so purchases made by Claude Code, Antigravity, or any MCP agent must pass the same contract + guard before a
+   checkout exists. Say "next", never "works with" for this one. Ship-to from the shopper's Shop account (`get_account`), Shop spend permissions for delegated
    payment, fewer human prompts by reading the refund policy at checkout. Install QR (`docs/qr-install-page.png`).
 
 Design: dark navy + yellow/black hazard tape (same as the app). Big numbers, few words. Screenshots from

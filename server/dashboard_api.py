@@ -99,13 +99,15 @@ def sanitize_contract(c: dict | None, *, include_attempts: bool = False) -> dict
     return out
 
 
-def sanitize_verdict(v: dict | None, *, admin: bool = False) -> dict | None:
-    """Return verdict without receipt signatures or secrets."""
+def sanitize_verdict(v: dict | None, *, admin: bool = False, contract: dict | None = None) -> dict | None:
+    """Return verdict without receipt signatures or secrets. Shoppers get plain-English reasons."""
     if not v:
         return None
     xray = v.get("xray") or {}
     reasons = xray.get("reasons") or []
     if not admin:
+        from common.plain import plain_reasons
+        reasons = plain_reasons(reasons, contract)
         return {
             "verdict": v.get("verdict"),
             "enforced": v.get("enforced", True),
@@ -295,12 +297,22 @@ async def shopper_events(token: str):
         },
         "contract": sanitize_contract(contract, include_attempts=False),
         "picked": picked,
-        "verdict": sanitize_verdict(verdict_raw, admin=False),
+        "verdict": sanitize_verdict(verdict_raw, admin=False, contract=contract),
         "checkout": sanitize_checkout(checkout_raw),
         "pending_approval": pending_approval,
         "agent_summary": agent_summary,
-        "events": _safe_shopper_events(req_id),
+        "events": _plain_events(_safe_shopper_events(req_id), contract),
     }
+
+
+def _plain_events(events: list, contract: dict | None) -> list:
+    from common.plain import plain_reason
+    out = []
+    for e in events or []:
+        if isinstance(e, dict) and e.get("reason") and e.get("kind") in ("verdict", "final_check"):
+            e = {**e, "reason": plain_reason(e["reason"], contract)}
+        out.append(e)
+    return out
 
 
 @router.get("/r/{token}/photo")

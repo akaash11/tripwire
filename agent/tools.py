@@ -148,7 +148,8 @@ class ShopSession:
         else:
             self._link_note = (f"The shopper's product link ({host}) is NOT in Shop's catalog, so it can't be bought here. "
                                "Only buy an exact match from that same store; otherwise stop and say it isn't available.")
-            self.last_problem = f"{host} isn't in Shop's catalog yet, so Tripwire can't check out there."
+            self.last_problem = (f"The store in your link ({host}) doesn't sell through Shop, so AI agents can't check out "
+                                 "there. Tripwire didn't buy a look-alike from another store.")
         return self._link_note
 
     def _prequote(self, shown: list[dict], cap: int | None) -> None:
