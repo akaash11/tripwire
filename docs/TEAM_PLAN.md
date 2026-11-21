@@ -1,13 +1,13 @@
 # Team plan (@labs: Akaash + Tanu)
 
-Architecture: [`ARCHITECTURE.md`](ARCHITECTURE.md). Commit small and often.
+**Rules first: [`EVENT_REQUIREMENTS.md`](EVENT_REQUIREMENTS.md).** Architecture: [`ARCHITECTURE.md`](ARCHITECTURE.md). Commit small and often.
 
 ## Strategy: POC first, then add features
 ### POC (target: ~12:30)
 1. Phone: Tripwire Buy sends voice + photo → contract (**done**, ~4s on Flash-Lite; Neon not answering yet).
-2. Agent: `search_products` (Catalog MCP) → `add_to_cart` → `request_checkout`.
+2. Agent: `search_products` (Shop MCP) → `add_to_cart` → `request_checkout`.
 3. Guard: policy backstop + Decision 1 per clause + canary.
-4. Approval: `ask_human` shows in Tripwire Approve; Approve → mock checkout → signed receipt.
+4. Approval: `ask_human` shows in Tripwire Approve; Approve → Tripwire creates a **real** Shop MCP checkout → the phone opens `continue_url` → shopper pays with Shop Pay. Signed receipt records it.
 5. Dashboard: Live (contract, X-ray, pending, on/off toggle) + Orders.
 
 ### After the POC (decide together)
@@ -25,10 +25,10 @@ Architecture: [`ARCHITECTURE.md`](ARCHITECTURE.md). Commit small and often.
 |---|---|
 | Server, phone routes, iPhone Shortcuts | `guard/check()` (keep the verdict shape in ARCHITECTURE.md) |
 | Contract compiler (done) | Policy backstop: payee, cap, signature, expiry, nonce, cart hash |
-| Shopping agent + Catalog MCP search | Canary planting + detection |
+| Shopping agent + Shop MCP search and real checkout (`agent/shop_mcp.py`, working) | Canary planting + detection |
 | Dashboard (Live, Orders, Usage, API keys) | Decision 1 per-clause gate, then the Neon checker + X-ray |
-| Usage logging, model settings | Mock UCP checkout with `messages[]` warnings, signed receipts |
-| Demo script and phone | Red-team harness: Carbon attacks, off vs on → `evals/out/results.json` |
+| Usage logging, model settings | Re-check the real checkout (totals, `messages[]` warnings, refund policy link) against the contract; signed receipts |
+| Demo script and phone | Red-team harness: Carbon attacks + outside examples; baselines (no guard, rules-only guard) vs Tripwire; failures listed → `evals/out/results.json` |
 | | Outside eval data so evals aren't all team-written; video with her bot |
 
 ### Where the halves meet
@@ -63,7 +63,7 @@ Neon (contract + checker) and Carbon (attacks) are the two. **Neon gave no reply
 returned 503;** Flash-Lite works. Ask Google staff about capacity. The compiler falls back automatically and logs which model ran.
 
 ## Shopify (sponsor track)
-Catalog MCP for real search, Shop `skill.md` as the agent's instructions (Tripwire enforces its rules), UCP checkout shape.
+A judge must make a **real purchase** or we can't win. Shop MCP for live search and real checkout, Shop `skill.md` (`https://mcp.shop.com/skill.md`) as the agent's instructions (Tripwire enforces its rules), Sign in with Shop for saved address + Shop Pay (stretch). Shortcuts must be installable by anyone (public URL via Tailscale Funnel).
 
 ## Checkpoints
 POC ~12:30 · Neon checker + scenarios ~2:30 · feature freeze 3:30 · video 4:00 · repo public + submit 4:45.

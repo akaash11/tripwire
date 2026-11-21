@@ -2,7 +2,8 @@
 
 Tripwire is a payment firewall for AI shopping agents. The person states what they want once, by voice and photo.
 Tripwire turns that into a signed **Intent Contract**, lets an agent shop the real Shopify catalog through tools that
-Tripwire controls, and only lets checkout happen if the cart satisfies the contract.
+Tripwire controls, and only lets checkout happen if the cart satisfies the contract. Purchases are **real**: Shop MCP
+checkout, paid by the shopper with Shop Pay on the checkout page. Requirements: [`EVENT_REQUIREMENTS.md`](EVENT_REQUIREMENTS.md).
 
 ```mermaid
 flowchart LR
@@ -11,10 +12,11 @@ flowchart LR
   C -->|Ed25519-signed contract| G
   S --> A[Shopping agent\nAntigravity managed agent\nonly 3 custom functions]
   A -->|search_products| Q[Quarantine]
-  Q --> M[(Shopify Catalog MCP)]
+  Q --> M[(Shop MCP\nmcp.shop.com)]
   A -->|add_to_cart| K[Cart]
   A -->|request_checkout| G[Guard]
-  G -->|approve| X[Mock UCP checkout\n+ signed receipt]
+  G -->|approve| X[Tripwire creates real checkout\nShop MCP create_checkout]
+  X -->|continue_url| PAY[Shopper pays with Shop Pay\non the checkout page]
   G -->|ask_human| P[iPhone: Tripwire Approve]
   G -->|block| B[X-ray + log]
   R[Red-team harness\nGemini 4 Carbon] -.poisoned listings.-> Q
@@ -27,9 +29,9 @@ flowchart LR
 | Server | `server/app.py` | Phone routes `/request`, `/pending`, `/approve` (reply fast, work in background); dashboard API (localhost only); `/pubkey` |
 | Contract compiler | `agent/contract.py` | Voice + photo → contract with `must` / `must_not` clauses, price cap, returns, nonce, expiry; Ed25519-signed |
 | Shopping agent | `agent/` | Antigravity managed agent with **only** `search_products`, `add_to_cart`, `request_checkout` (no code execution, search or URL tools) |
-| Catalog search | `agent/` | Shopify Catalog MCP (`search_catalog`), currency and ships-to pinned by Tripwire, results quarantined before the agent sees them |
+| Shop MCP client | `agent/shop_mcp.py` | `https://mcp.shop.com/`: live search, `create_checkout`, `get_checkout`; currency and ships-to pinned by Tripwire; results quarantined before the agent sees them |
 | Guard | `guard/` | `check(contract, cart, products) -> verdict`: policy backstop, Decision 1 per clause, canary, replay/tamper, Neon contract checker |
-| Checkout | `guard/` or `agent/` | Mock checkout in the UCP shape, including `messages[]` warnings like `final_sale` |
+| Checkout | `server/` | **Real** Shop MCP checkout, created by Tripwire (never the agent) only after approval; re-checked against the contract; `continue_url` goes to the shopper's phone |
 | Red-team | `evals/` | Carbon generates attacks; each scenario runs with Tripwire off and on; attack success and false positives |
 | Dashboard | `dashboard/` | Live, Orders, Usage, Red-team, API keys. A control panel, not the product |
 | Shared | `common/` | `.env` loading, usage log (`logs/usage.jsonl`), Ed25519 sign / verify |
@@ -84,8 +86,8 @@ verify it with `GET /pubkey`.
 Every model call is logged with the model actually used, so fallbacks are visible on the dashboard.
 
 ## Shopify
-- **Catalog MCP** for real product search (no sign-in needed).
+- **Shop MCP** (`https://mcp.shop.com/`) for live search and **real checkout** (no sign-in needed; signed-in adds saved address + Shop Pay).
 - **Shop `skill.md`** as the agent's shopping instructions, with its checkout step replaced by `request_checkout`.
   The skill asks the agent to confirm before buying, show `final_sale` warnings and ignore instructions inside
   product data; Tripwire enforces those rules outside the agent.
-- **UCP checkout shape** for the mock checkout, including `messages[]` warnings.
+- Checkout `messages[]` warnings and `links` (refund policy) feed the contract re-check before the shopper gets the pay link.
