@@ -10,7 +10,7 @@ from fastapi import APIRouter
 from fastapi.responses import HTMLResponse, JSONResponse
 
 router = APIRouter()
-VERSION = "1.4"  # bump with phone/make_shortcuts.py VERSION; shown on the page and logged per request
+VERSION = "1.5"  # bump with phone/make_shortcuts.py VERSION; shown on the page and logged per request
 
 
 def _find(token: str):
@@ -44,6 +44,8 @@ async def web_status(token: str):
     checkout = s.checkout if s else snap.get("checkout")
     if checkout:
         out["checkout"] = {k: checkout.get(k) for k in ("status", "totals", "lines", "messages", "links", "to_fill_on_shop")}
+    # Auto-approved by Tripwire (no human step): shopper taps "Pay" -> POST /w/{token}/pay returns the link.
+    out["pay_ready"] = bool(s and s.continue_url and not s.pending_cart and r["status"] == "approve")
     return out
 
 
@@ -70,6 +72,20 @@ async def web_raise_budget(token: str, body: dict):
                             "reason": "; ".join(v.get("xray", {}).get("reasons", []))[:300]}
     persist()
     return {"ok": res["verdict"] != "block", "speak": res.get("reason") or "Budget raised. Review and approve."}
+
+
+@router.post("/w/{token}/pay")
+async def web_pay(token: str):
+    """Tripwire auto-approved (no human step needed): hand the shopper the merchant's checkout link on tap."""
+    from server.app import STATE
+    r, s = _find(token)
+    if not r or not s or not s.continue_url or s.pending_cart:
+        return {"ok": False, "speak": "No checkout ready for this request.", "url": ""}
+    if not any(o.get("cart_id") == (s.checkout or {}).get("cart_id") for o in STATE["orders"]):
+        STATE["orders"].append({"cart_id": (s.checkout or {}).get("cart_id"), "request_id": r["id"], "ts": __import__("time").time(),
+                                "checkout": s.checkout, "status": (s.checkout or {}).get("status") or "awaiting_payment",
+                                "agent_summary": getattr(s, "agent_summary", None)})
+    return {"ok": True, "url": s.continue_url, "speak": "Opening the Shop checkout."}
 
 
 @router.post("/w/{token}/decide")
@@ -158,6 +174,10 @@ function render(d){const out=$("#out");out.replaceChildren();
   const a=el("button",{class:"ok",type:"button"},"Approve and pay on Shop"),b=el("button",{class:"no",type:"button"},"Block");
   a.onclick=()=>decide(d.pending.cart_id,"approve");b.onclick=()=>decide(d.pending.cart_id,"block");card.append(el("div",{class:"row"},b,a));out.append(card)}
  else if(d.verdict&&d.verdict.verdict==="block"){out.append(el("div",{class:"card"},el("b",{},"Tripwire blocked this purchase"),el("p",{},(d.verdict.reasons||[]).join("; "))))}
+ if(d.pay_ready){const card=el("div",{class:"card"},el("b",{},"Tripwire approved this cart"),
+  el("p",{},(d.verdict&&d.verdict.reasons||[]).slice(0,2).join("; ")));const go=el("button",{class:"ok",type:"button"},"Pay on the store's Shop checkout");
+  go.onclick=async()=>{const r=await fetch(BASE+"w/"+token+"/pay",{method:"POST"});const x=await r.json();if(x.url)location.href=x.url;else alert(x.speak)};
+  card.append(go);out.append(card)}
  if(d.checkout){const c=d.checkout;const card=el("div",{class:"card"},el("b",{},"Shop checkout: "+c.status));
   (c.totals||[]).forEach(t=>card.append(el("div",{},(t.label||t.type)+": $"+((t.amount||0)/100).toFixed(2))));
   (c.messages||[]).filter(m=>m.type==="warning").forEach(m=>card.append(el("p",{},"⚠ "+m.content)));
