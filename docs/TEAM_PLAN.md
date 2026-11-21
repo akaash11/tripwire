@@ -4,7 +4,7 @@
 
 ## Strategy: POC first, then add features
 ### POC (target: ~12:30)
-1. Phone: Tripwire Buy sends voice + photo → contract (**done**, ~4s on Flash-Lite; Neon not answering yet).
+1. Phone: Tripwire Buy sends voice + photo → contract (**done**: Neon, 11s at thinking low, with Flash-Lite fallback).
 2. Agent: `search_products` (Shop MCP) → `add_to_cart` → `request_checkout`.
 3. Guard: policy backstop + Decision 1 per clause + canary.
 4. Approval: `ask_human` shows in Tripwire Approve; Approve → Tripwire creates a **real** Shop MCP checkout → the phone opens `continue_url` → shopper pays with Shop Pay. Signed receipt records it.
@@ -59,8 +59,9 @@ settings routes refuse requests that come through Tailscale.
 5. Red-team numbers: attack success off vs on, false positives.
 
 ## Gemini models (rule: 2+ Gemini 4 models with clear jobs)
-Neon (contract + checker) and Carbon (attacks) are the two. **Neon gave no reply in 300s at event start and 3.8-flash
-returned 503;** Flash-Lite works. Ask Google staff about capacity. The compiler falls back automatically and logs which model ran.
+Neon (contract + checker) and Carbon (attacks) are the two. On the event's tier 3 key every Gemini 4 model answers
+(Carbon 3.6s, Neon 4.1s, Hydrogen 6.8s, Argon 9.6s on text). Use `thinking_level: low` on the hot path. The compiler
+falls back to Flash-Lite and logs which model ran.
 
 ## Shopify (sponsor track)
 A judge must make a **real purchase** or we can't win. Shop MCP for live search and real checkout, Shop `skill.md` (`https://mcp.shop.com/skill.md`) as the agent's instructions (Tripwire enforces its rules), Sign in with Shop for saved address + Shop Pay (stretch). Shortcuts must be installable by anyone (public URL via Tailscale Funnel).

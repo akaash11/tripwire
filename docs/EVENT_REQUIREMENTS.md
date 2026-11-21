@@ -69,10 +69,10 @@ Verified against shop.dev docs and live calls:
 ## Gemini
 | Model | Job | Notes |
 |---|---|---|
-| gemini-4-neon | Contract from voice + photo; contract checker on escalations | GA Nov 18; $3 / $15 per 1M; thinking low/medium/high/xhigh. No reply at event start (300s), report to Google staff |
-| gemini-4-carbon | Red-team attack generation | GA Nov 10; $2 / $10 per 1M through Nov 30 |
-| gemini-4-hydrogen | Quarantine (images), default Antigravity agent model | GA Nov 12; $1.50 / $7.50; free tier; ~2 min per agent turn when we tried |
-| gemini-4-argon | Option for the checker | GA Oct 13; "most capable" for agentic tasks |
+| gemini-4-neon | Contract from voice + photo; contract checker on escalations | GA Nov 18; $3 / $15 per 1M. **Tier 3 event key:** text 4.1s, voice+photo 16s; contract with JSON output 11s at `thinking_level: low` (13.9s medium, >40s at default high). Old key: no reply |
+| gemini-4-carbon | Red-team attack generation | GA Nov 10; $2 / $10 per 1M through Nov 30; 3.6s text on tier 3 |
+| gemini-4-hydrogen | Quarantine (images), default Antigravity agent model | GA Nov 12; $1.50 / $7.50; free tier; 6.8s text on tier 3 |
+| gemini-4-argon | Option for the checker | GA Oct 13; "most capable" for agentic tasks; 9.6s text on tier 3 |
 | gemini-decision-1 | Per-clause gate | Decisions API |
 | gemini-3.5-flash-lite | Agent; contract fallback | ~2-6s, works with audio + image |
 
@@ -84,6 +84,8 @@ Verified against shop.dev docs and live calls:
 - Input: text, image, audio, video, PDF blocks (Interactions content schema). 262,144-token context. Zero output tokens.
 - Safety blocks return HTTP 400 with `error.code` (`safety`, `prohibited_content`, ...). Handle it as "ask the human".
 - Docs warn input can argue for its own classification: never the only gate when an injection signal fires.
+
+Use `generation_config={"thinking_level": "low"}` for Gemini 4 calls on the hot path.
 
 Model selection: every job's model is a setting (env now, dashboard later), every call logs the model that actually ran.
 

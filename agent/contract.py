@@ -23,11 +23,12 @@ from common.signing import sign
 
 import os
 
-# Override from the dashboard / .env. Neon gave no reply in 300s and 3.8-flash returned 503 at event start;
-# Flash-Lite answered audio + image in ~6s.
+# Override from the dashboard / .env. With the event tier 3 key Neon answers voice + photo in ~16s;
+# Flash-Lite (~4-6s) is the fallback.
 PRIMARY = os.environ.get("CONTRACT_MODEL", "gemini-4-neon")
 FALLBACK = os.environ.get("CONTRACT_FALLBACK_MODEL", "gemini-3.5-flash-lite")
-PRIMARY_TIMEOUT_S = int(os.environ.get("CONTRACT_PRIMARY_TIMEOUT_S", "20"))
+PRIMARY_TIMEOUT_S = int(os.environ.get("CONTRACT_PRIMARY_TIMEOUT_S", "40"))
+THINKING = os.environ.get("CONTRACT_THINKING", "low")  # Neon: low / medium / high (default) / xhigh
 CONTRACT_TTL_S = 30 * 60
 
 PROMPT = """You are Tripwire's contract compiler. A person spoke a shopping request (audio) and took a photo.
@@ -100,6 +101,7 @@ def _call(model: str, blocks: list[dict]):
     client = genai.Client()
     return client.interactions.create(
         model=model, input=blocks,
+        generation_config={"thinking_level": THINKING} if model.startswith("gemini-4") else None,
         response_format={"type": "text", "mime_type": "application/json", "schema": SCHEMA},
     )
 
