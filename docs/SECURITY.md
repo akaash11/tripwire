@@ -34,6 +34,8 @@ Cost: 7/12 legit buys still ask a human (returns unknown before checkout), 1/12 
 and 7 exist.
 
 ## Real example from today
-Asked for "the orange cat digital sticker from Monday Cartoons". It isn't in Shop's catalog, so the agent grabbed
-"Monday Cat - Sticker" from a different seller. Tripwire blocked it: the "from Monday Cartoons" clause failed
-(Decision 1: 0.08, confidence 0.92). Without Tripwire, you'd have paid for the wrong sticker.
+Asked for "the orange cat digital sticker from Monday Cartoons". The first time, it wasn't in Shop's catalog, so the agent
+grabbed "Monday Cat - Sticker" from a different seller and Tripwire blocked it (the "from Monday Cartoons" clause failed,
+Decision 1: 0.08). Now, when a product link isn't in Shop's catalog, Tripwire checks whether the site is a Shopify store
+(`/meta.json` has a `myshopify_domain`), reads that exact product from the store, and runs it through the same guard and
+Shop checkout: the right sticker, $0.54 delivered, every clause passed (`agent/storefront.py`).

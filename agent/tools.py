@@ -139,7 +139,14 @@ class ShopSession:
         except shop_mcp.ShopError:
             found = []
         host = url.split("/")[2] if url.count("/") >= 2 else url
-        self.on_event("link_lookup", host=host, found=len(found))
+        source = "shop_catalog"
+        if not found:
+            # Not in Shop's catalog: if the site is a Shopify store, read the product from the store itself.
+            from agent import storefront
+            p = storefront.lookup(url)
+            if p and p["variants"][0]["price"]["amount"] is not None:
+                found, source = [p], "store_direct"
+        self.on_event("link_lookup", host=host, found=len(found), source=source if found else None)
         if found:
             for p in found:
                 p["_exact_link_match"] = True

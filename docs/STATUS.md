@@ -27,7 +27,15 @@ Run: `.venv/bin/uvicorn server.app:app --host 127.0.0.1 --port 8790` · typed te
 `curl -X POST localhost:8790/request_text -H 'content-type: application/json' -d '{"text":"..."}'` then `GET /pending`, `POST /approve`.
 CLI: `.venv/bin/python -m agent.run "a 100W USB-C cable under 20 dollars, returnable"`.
 
-## Now (14:30): stable v1.2 + product links
+## Now (16:25): v1.7, off-catalog Shopify stores
+- A product link Shop's catalog doesn't list (Monday Cartoons sticker) is now resolved from the store itself:
+  `/meta.json` → `myshopify_domain`, `/products.json` → exact variant; Shop `create_checkout` accepts it. Verified live:
+  "Digital Sticker" from Monday Cartoons, $0.54 delivered, all clauses pass, ask_human (returns unknown). 44 tests pass.
+- Install page advertises only Tripwire Buy (Check Shopify `.shortcut` still served, not linked).
+- Slowdown root cause (not fixed, after the demo): the guard runs before the delivery/budget quote, so each failed
+  over-budget attempt costs a full 7 to 15 s guard run; the agent ignores delivers/within_budget hints.
+
+## Earlier (14:30): stable v1.2 + product links
 **Works end to end, live:** iPhone Shortcut (v1.4) or `/buy` → Neon contract (reads a product link off the photo) →
 agent (search + one-step buy, top 5 quoted in parallel) → Tanu's guard → delivery/price quote → shopper page `/r/{token}`
 (Approve / Block / Raise budget / Pay) → merchant's real Shop checkout. ~18 s typical. 42 tests pass. Install via

@@ -12,7 +12,7 @@ from fastapi import APIRouter
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 
 router = APIRouter()
-VERSION = "1.6"  # bump with phone/make_shortcuts.py VERSION; shown on the page and logged per request
+VERSION = "1.7"  # bump with phone/make_shortcuts.py VERSION; shown on the page and logged per request
 DASHBOARD_DIR = pathlib.Path(__file__).resolve().parents[1] / "dashboard"
 
 
