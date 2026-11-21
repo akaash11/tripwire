@@ -44,10 +44,33 @@ def is_local(request: Request) -> bool:
     return request.client.host == "127.0.0.1" and "tailscale-user-login" not in request.headers
 
 
+def _req(req_id: str) -> dict:
+    return next(r for r in STATE["requests"] if r["id"] == req_id)
+
+
 async def process_request(req_id: str) -> None:
-    """Background pipeline: Neon contract -> agent -> guard. Stubbed until wired."""
+    """Background pipeline: Neon contract -> agent -> guard."""
+    from agent.contract import compile_contract
+
+    r = _req(req_id)
+    files = r["files"]
     event("pipeline_started", request_id=req_id)
-    # TODO(akaash): agent.contract.compile(audio, photo) -> contract; agent.run(contract) -> cart; guard.check(...)
+    r["status"] = "compiling_contract"
+    try:
+        contract = await asyncio.to_thread(
+            compile_contract,
+            files.get("audio", {}).get("path"), files.get("photo", {}).get("path"), r.get("text"))
+    except Exception as e:  # noqa: BLE001
+        r["status"] = "contract_failed"
+        event("contract_failed", request_id=req_id, error=str(e)[:500])
+        return
+    r["status"] = "contract_ready"
+    r["contract_id"] = contract["contract_id"]
+    STATE.setdefault("contracts", {})[contract["contract_id"]] = contract
+    STATE["current_contract"] = contract["contract_id"]
+    event("contract_ready", request_id=req_id, contract_id=contract["contract_id"],
+          summary=contract.get("summary"), compiled_by=contract.get("compiled_by"))
+    # TODO(akaash): agent.run(contract) -> cart; guard.check(contract, cart, products) -> verdict
 
 
 @app.post("/request")
@@ -71,7 +94,10 @@ async def request_route(audio: UploadFile | None = File(None), photo: UploadFile
 async def pending():
     p = STATE["pending"]
     if not p:
-        return {"cart_id": None, "summary": "Nothing waiting for approval.", "verdict": None, "reason": ""}
+        cid = STATE.get("current_contract")
+        c = STATE.get("contracts", {}).get(cid) if cid else None
+        summary = f"Nothing to approve yet. Your contract: {c['summary']}" if c else "Nothing waiting for approval."
+        return {"cart_id": None, "summary": summary, "verdict": None, "reason": ""}
     return {k: p.get(k) for k in ("cart_id", "summary", "verdict", "reason")}
 
 
@@ -92,6 +118,23 @@ async def api_state(request: Request):
     if not is_local(request):
         return JSONResponse({"error": "dashboard is local only"}, status_code=403)
     return STATE
+
+
+@app.post("/request_text")
+async def request_text(body: dict):
+    """Typed request (dashboard / testing without the phone)."""
+    req_id = "rq_" + uuid.uuid4().hex[:8]
+    STATE["requests"].append({"id": req_id, "ts": time.time(), "files": {}, "text": body.get("text", ""),
+                              "status": "received"})
+    event("request_received", request_id=req_id, text=body.get("text", ""))
+    asyncio.create_task(process_request(req_id))
+    return {"speak": "Got it.", "contract_id": req_id}
+
+
+@app.get("/pubkey")
+async def pubkey():
+    from common.signing import KEY_ID, public_pem
+    return {"key_id": KEY_ID, "alg": "Ed25519", "public_key_pem": public_pem()}
 
 
 @app.get("/health")
