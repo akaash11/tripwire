@@ -27,6 +27,15 @@ Run: `.venv/bin/uvicorn server.app:app --host 127.0.0.1 --port 8790` · typed te
 CLI: `.venv/bin/python -m agent.run "a 100W USB-C cable under 20 dollars, returnable"`.
 
 ## Not done yet (priority order)
+**Next (UI, Antigravity):** one shopper page. `/r/{token}` gets the actions (Approve, Raise budget), `/t/{token}` and
+`/buy` redirect to it, and STATE persists across restarts. Prompt: [`prompts/ANTIGRAVITY_SHOPPER_UI.md`](prompts/ANTIGRAVITY_SHOPPER_UI.md).
+
+**Budget (v1.4, verified over Funnel):** budgets are for the DELIVERED total. The contract has `budget_stated`; if the
+shopper gave none, Neon guesses and the page says so. If every deliverable option is over budget, the request ends
+`over_budget` with an `offer` (cheapest quoted). Only the shopper can raise it (`POST /w/{token}/raise_budget`): the
+contract is re-signed with `amended_by: "shopper"`, the guard re-runs, and that same checkout goes to Approve. Test:
+"gummy bears, budget $6" → cheapest delivering $31.56 ($26 shipping) → Raise → Approve → shop.app. `/buy` has an
+optional budget field. Shop's "first name / address required" messages are now `to_fill_on_shop`, not errors.
 0. **Ship-to must come from the shopper, not a fixed city (Akaash, 2026-11-21).** Today quotes use `SHIP_TO_*` (New York
    10001) because everyone tests at the venue. Real fix: Shop MCP `get_account` returns the signed-in shopper's saved
    `addresses[]` + `preferred_address_id`; its own instructions say to copy one entry unchanged into the checkout's

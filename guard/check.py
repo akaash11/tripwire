@@ -111,7 +111,8 @@ def check(contract: dict, cart: dict, products: list[dict]) -> dict:
     receipt = None
     if verdict_name == "approve":
         receipt = _issue_receipt(contract, cart)
-        consume_nonce(contract.get("nonce"))
+        # Nonce is consumed when the checkout is handed to the shopper (agent/tools.open_checkout), not here:
+        # an approved cart can still fail the delivery/price quote, and the agent must be able to try another seller.
         if not reasons:
             reasons = ["all contract clauses passed Decision 1; policy and signature checks passed"]
 

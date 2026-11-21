@@ -25,7 +25,7 @@ from guard.refund import refund_policy_signal  # noqa: E402
 from guard.checkout import final_check  # noqa: E402
 from agent.tools import ShopSession  # noqa: E402
 from guard.listing import input_blocks, listing_text  # noqa: E402
-from guard.replay import hash_cart  # noqa: E402
+from guard.replay import consume_nonce, hash_cart  # noqa: E402
 
 
 def _iso(dt: datetime) -> str:
@@ -197,6 +197,7 @@ class GuardTests(unittest.TestCase):
         with patch("guard.check.gate.evaluate", side_effect=self.approve_gate):
             first = check(contract, cart, self.sample_products())
         self.assertEqual(first["verdict"], "approve")
+        consume_nonce(contract["nonce"])  # checkout handed to the shopper (agent/tools.open_checkout)
         with patch("guard.check.gate.evaluate") as mocked:
             second = check(contract, cart, self.sample_products())
             mocked.assert_not_called()
@@ -442,6 +443,9 @@ class GuardTests(unittest.TestCase):
             retried = check(contract, honest, products)
             self.assertEqual(retried["verdict"], "approve")
             self.assertIsNotNone(retried["receipt"])
+            again = check(contract, honest, products)  # approved but not handed over yet: still usable
+            self.assertEqual(again["verdict"], "approve")
+            consume_nonce(contract["nonce"])  # handover
             replayed = check(contract, honest, products)
             self.assertEqual(replayed["verdict"], "block")
             self.assertTrue(any("nonce" in r or "replay" in r for r in replayed["xray"]["reasons"]))
