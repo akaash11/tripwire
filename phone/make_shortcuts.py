@@ -51,8 +51,9 @@ def variable(ref: dict) -> dict:
 
 
 def file_param(ref: dict) -> dict:
-    # Form-field files must use this wrapper or `shortcuts sign` throws.
-    return {"Value": ref, "WFSerializationType": "WFTokenAttachmentParameterState"}
+    # Form-field files need BOTH layers: a WFTextTokenAttachment inside WFTokenAttachmentParameterState.
+    # Without the outer layer `shortcuts sign` throws; without the inner one iOS sends the form with NO files.
+    return {"Value": variable(ref), "WFSerializationType": "WFTokenAttachmentParameterState"}
 
 
 def fields(items: list[tuple[str, int, dict]]) -> dict:

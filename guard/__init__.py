@@ -1,6 +1,6 @@
 """Tripwire guard. Owner: Tanu.
 
-check(contract, cart, products) -> verdict dict (shape: tripwire-prep prep/INTERFACES.md section 3).
+check(contract, cart, products) -> verdict dict (shape: docs/ARCHITECTURE.md "Verdict shape").
 This is a STUB so the server and agent can be wired now. Replace the body; keep the signature and the keys.
 """
 from __future__ import annotations

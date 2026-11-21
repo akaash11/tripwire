@@ -10,10 +10,11 @@ from __future__ import annotations
 
 import asyncio
 import pathlib
+import secrets
 import time
 import uuid
 
-from fastapi import FastAPI, File, Request, UploadFile
+from fastapi import FastAPI, File, Form, Request, UploadFile
 from fastapi.responses import JSONResponse
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
@@ -121,7 +122,8 @@ async def process_request(req_id: str) -> None:
 
 
 @app.post("/request")
-async def request_route(audio: UploadFile | None = File(None), photo: UploadFile | None = File(None)):
+async def request_route(audio: UploadFile | None = File(None), photo: UploadFile | None = File(None),
+                        text: str | None = Form(None)):
     if rate_limited():
         return JSONResponse({"speak": "Tripwire is busy. Try again in a minute.", "contract_id": None}, status_code=429)
     req_id = "rq_" + uuid.uuid4().hex[:8]
@@ -135,10 +137,18 @@ async def request_route(audio: UploadFile | None = File(None), photo: UploadFile
         out = UPLOADS / f"{req_id}_{name}{pathlib.Path(f.filename or '').suffix or ''}"
         out.write_bytes(data)
         saved[name] = {"path": str(out), "bytes": len(data), "type": f.content_type}
-    STATE["requests"].append({"id": req_id, "ts": time.time(), "files": saved, "status": "received"})
-    event("request_received", request_id=req_id, files={k: v["bytes"] for k, v in saved.items()})
+    text = (text or "").strip()[:500] or None
+    if not saved and not text:
+        event("request_empty", request_id=req_id)
+        return JSONResponse({"speak": "Tripwire didn't receive your voice or photo. Please try again.",
+                             "contract_id": None}, status_code=400)
+    token = secrets.token_urlsafe(16)  # per-request view/decide token (web page + shopper chat page)
+    STATE["requests"].append({"id": req_id, "ts": time.time(), "files": saved, "text": text, "status": "received",
+                              "token": token})
+    event("request_received", request_id=req_id, files={k: v["bytes"] for k, v in saved.items()}, text=text)
     asyncio.create_task(process_request(req_id))
-    return {"speak": "Got it. Tripwire is building your contract. Check the dashboard.", "contract_id": req_id}
+    return {"speak": "Got it. Tripwire is building your contract. Run Tripwire Approve in about 30 seconds.",
+            "contract_id": req_id, "token": token}
 
 
 @app.get("/pending")
@@ -152,15 +162,14 @@ async def pending():
     return {k: p.get(k) for k in ("cart_id", "summary", "verdict", "reason")}
 
 
-@app.post("/approve")
-async def approve(body: dict):
-    decision = str(body.get("decision", "")).lower()
-    p = STATE["pending"]
-    if not p or p.get("cart_id") != body.get("cart_id"):
-        return {"ok": False, "speak": "That cart is no longer pending."}
+async def decide(p: dict, decision: str) -> dict:
+    """Shared by the Approve shortcut (/approve) and the web page (/w/{token}/decide)."""
     event("human_decision", cart_id=p["cart_id"], decision=decision)
-    STATE["pending"] = None
+    if STATE["pending"] and STATE["pending"].get("cart_id") == p["cart_id"]:
+        STATE["pending"] = None
     session = SESSIONS.get(p["request_id"])
+    if session is not None:
+        session.pending_cart = None
     if decision != "approve" or session is None:
         return {"ok": True, "speak": "Blocked. Nothing was bought.", "url": ""}
     try:
@@ -174,6 +183,15 @@ async def approve(body: dict):
     amount = f"${total.get('amount', 0)/100:.2f}" if total.get("amount") is not None else ""
     return {"ok": True, "url": session.continue_url or "",
             "speak": f"Approved. Opening the Shop checkout for {amount}. Pay there with Shop Pay."}
+
+
+@app.post("/approve")
+async def approve(body: dict):
+    decision = str(body.get("decision", "")).lower()
+    p = STATE["pending"]
+    if not p or p.get("cart_id") != body.get("cart_id"):
+        return {"ok": False, "speak": "That cart is no longer pending.", "url": ""}
+    return await decide(p, decision)
 
 
 @app.get("/api/state")
@@ -216,6 +234,11 @@ async def request_text(body: dict, request: Request):
 async def pubkey():
     from common.signing import KEY_ID, public_pem
     return {"key_id": KEY_ID, "alg": "Ed25519", "public_key_pem": public_pem()}
+
+
+from server.web import router as web_router  # noqa: E402  (phone web page for judges: /buy)
+
+app.include_router(web_router)
 
 
 @app.get("/health")

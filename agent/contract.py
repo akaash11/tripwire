@@ -96,19 +96,26 @@ def _blocks(audio: pathlib.Path | None, photo: pathlib.Path | None, text: str | 
     return blocks
 
 
-def _call(model: str, blocks: list[dict]):
+def _call(model: str, blocks: list[dict], thinking: str | None = None):
     from google import genai
     client = genai.Client()
+    level = thinking or os.environ.get("CONTRACT_THINKING", THINKING)
     return client.interactions.create(
         model=model, input=blocks,
-        generation_config={"thinking_level": THINKING} if model.startswith("gemini-4") else None,
+        generation_config={"thinking_level": level} if model.startswith("gemini-4") else None,
         response_format={"type": "text", "mime_type": "application/json", "schema": SCHEMA},
     )
 
 
 def compile_contract(audio: str | None = None, photo: str | None = None, text: str | None = None,
-                     primary_timeout_s: int = PRIMARY_TIMEOUT_S) -> dict:
+                     primary_timeout_s: int | None = None) -> dict:
     load_env()
+    primary = os.environ.get("CONTRACT_MODEL", PRIMARY)
+    fallback = os.environ.get("CONTRACT_FALLBACK_MODEL", FALLBACK)
+    thinking = os.environ.get("CONTRACT_THINKING", THINKING)
+    timeout_s = primary_timeout_s if primary_timeout_s is not None else int(
+        os.environ.get("CONTRACT_PRIMARY_TIMEOUT_S", str(PRIMARY_TIMEOUT_S))
+    )
     a = pathlib.Path(audio) if audio else None
     p = pathlib.Path(photo) if photo else None
     blocks = _blocks(a, p, text)
@@ -116,10 +123,10 @@ def compile_contract(audio: str | None = None, photo: str | None = None, text: s
     attempts = []
     body = None
     pool = cf.ThreadPoolExecutor(max_workers=2)
-    chain = [(PRIMARY, primary_timeout_s)] + ([(FALLBACK, 60)] if FALLBACK != PRIMARY else [])
+    chain = [(primary, timeout_s)] + ([(fallback, 60)] if fallback and fallback != primary else [])
     for model, timeout in chain:
         t0 = time.time()
-        fut = pool.submit(_call, model, blocks)
+        fut = pool.submit(_call, model, blocks, thinking)
         try:
             it = fut.result(timeout=timeout)
             ms = int((time.time() - t0) * 1000)

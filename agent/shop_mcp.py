@@ -73,8 +73,18 @@ def get_checkout(shop_domain: str, checkout_id: str) -> dict:
     return call("get_checkout", {"shop": shop_domain, "id": checkout_id})
 
 
+def refresh_checkout_view(shop_domain: str, checkout_id: str) -> dict:
+    """Poll Shop MCP get_checkout and return a secret-free view (never returns id or continue_url)."""
+    return checkout_view(get_checkout(shop_domain, checkout_id))
+
+
 def checkout_view(c: dict) -> dict:
     """What we show the shopper (and store): no checkout id, continue_url kept separately."""
+    order = c.get("order")
+    order_view = None
+    if isinstance(order, dict):
+        order_view = {k: order.get(k) for k in ("id", "name", "order_number", "permalink_url", "status_url", "created_at")
+                      if order.get(k) is not None}
     return {
         "status": c.get("status"),
         "currency": c.get("currency"),
@@ -85,5 +95,6 @@ def checkout_view(c: dict) -> dict:
         "messages": [{"type": m.get("type"), "code": m.get("code"), "severity": m.get("severity"),
                       "content": m.get("content")} for m in c.get("messages", [])],
         "links": [{"type": l.get("type"), "url": l.get("url")} for l in c.get("links", [])],
+        "order": order_view,
         "expires_at": c.get("expires_at"),
     }
