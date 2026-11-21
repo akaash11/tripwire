@@ -392,19 +392,18 @@ class GuardTests(unittest.TestCase):
         }
         self.assertEqual(route(contract, answers)["verdict"], "block")
 
-    @unittest.expectedFailure
     def test_policy_block_does_not_consume_the_nonce(self) -> None:
-        """Gap: a price-cap block still records the nonce, so the same contract cannot be retried."""
+        """A price-cap block must not consume the nonce, so the same contract can be retried."""
         cart = self.sample_cart(total_cents=99999)
         contract = self.make_contract()
         with patch("guard.check.gate.evaluate"):
             check(contract, cart, self.sample_products())
-        stored = json.loads(Path(replay.nonce_path()).read_text())
+        path = Path(replay.nonce_path())
+        stored = json.loads(path.read_text()) if path.exists() else []
         self.assertNotIn(contract["nonce"], stored)
 
-    @unittest.expectedFailure
     def test_cart_price_must_match_the_shop_variant(self) -> None:
-        """Gap: cart total is not checked against the live variant price."""
+        """A $1 cart for a $12.99 live variant must be blocked as price_tamper."""
         cart = self.sample_cart(total_cents=100)
         cart["lines"][0]["unit_price_cents"] = 100
         cart["cart_hash"] = hash_cart(cart)
@@ -412,7 +411,37 @@ class GuardTests(unittest.TestCase):
         with patch("guard.check.gate.evaluate", side_effect=self.approve_gate):
             result = check(contract, cart, self.sample_products())
         self.assertEqual(result["verdict"], "block")
-        self.assertTrue(any("price" in r for r in result["xray"]["reasons"]))
+        self.assertTrue(any("price_tamper" in r for r in result["xray"]["reasons"]))
+        self.assertIsNone(result.get("receipt"))
+
+    def test_missing_live_variant_is_blocked(self) -> None:
+        cart = self.sample_cart()
+        products = self.sample_products()
+        products[0]["variants"][0]["id"] = "gid://shopify/ProductVariant/OTHER"
+        products[0]["id"] = "gid://shopify/p/OTHER"
+        contract = self.make_contract()
+        with patch("guard.check.gate.evaluate", side_effect=self.approve_gate):
+            result = check(contract, cart, products)
+        self.assertEqual(result["verdict"], "block")
+        self.assertTrue(any("price_tamper" in r and "missing" in r for r in result["xray"]["reasons"]))
+
+    def test_approved_contract_cannot_be_replayed_and_blocked_one_can_be_retried(self) -> None:
+        contract = self.make_contract()
+        products = self.sample_products()
+        tampered = self.sample_cart(total_cents=100)
+        tampered["lines"][0]["unit_price_cents"] = 100
+        tampered["cart_hash"] = hash_cart(tampered)
+        honest = self.sample_cart()
+        with patch("guard.check.gate.evaluate", side_effect=self.approve_gate):
+            blocked = check(contract, tampered, products)
+            self.assertEqual(blocked["verdict"], "block")
+            self.assertTrue(any("price_tamper" in r for r in blocked["xray"]["reasons"]))
+            retried = check(contract, honest, products)
+            self.assertEqual(retried["verdict"], "approve")
+            self.assertIsNotNone(retried["receipt"])
+            replayed = check(contract, honest, products)
+            self.assertEqual(replayed["verdict"], "block")
+            self.assertTrue(any("nonce" in r or "replay" in r for r in replayed["xray"]["reasons"]))
 
 
 if __name__ == "__main__":
