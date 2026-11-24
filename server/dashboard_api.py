@@ -35,15 +35,9 @@ def _deny_if_remote(request: Request) -> JSONResponse | None:
 
 
 def _find_request_by_token(token: str) -> dict | None:
-    from server.app import STATE
+    from server.app import expire_if_stale, store
 
-    if not token or len(token) < 8:
-        return None
-    for r in STATE["requests"]:
-        t = r.get("token")
-        if t and secrets.compare_digest(t, token):
-            return r
-    return None
+    return expire_if_stale(store.find_by_token(token))
 
 
 def _find_request_by_id(req_id: str) -> dict | None:
@@ -164,8 +158,8 @@ def _collect_req_carts(req_id: str, sess, snap: dict | None) -> set[str]:
     return carts
 
 
-def _safe_shopper_events(req_id: str) -> list[dict]:
-    from server.app import SESSIONS, SNAPSHOTS, STATE
+def _safe_shopper_events(req_id: str, sess=None) -> list[dict]:
+    from server.app import SNAPSHOTS, store
 
     allowed_fields: dict[str, tuple[str, ...]] = {
         "request_received": ("text", "client"),
@@ -185,11 +179,10 @@ def _safe_shopper_events(req_id: str) -> list[dict]:
         "agent_failed": ("error",),
     }
     out = []
-    sess = SESSIONS.get(req_id)
     snap = SNAPSHOTS.get(req_id)
     req_carts = _collect_req_carts(req_id, sess, snap)
 
-    for ev in STATE["events"]:
+    for ev in store.events(req_id):
         ev_req = ev.get("request_id")
         ev_cart = ev.get("cart_id")
         if ev_req != req_id and not (ev_req is None and ev_cart and ev_cart in req_carts):
@@ -264,18 +257,18 @@ async def shopper_page(token: str):
 
 @router.get("/r/{token}/events")
 async def shopper_events(token: str):
-    from server.app import SESSIONS, SNAPSHOTS, STATE
+    from server.app import SNAPSHOTS, store
 
     r = _find_request_by_token(token)
     if not r:
         return JSONResponse({"error": "not found"}, status_code=404)
     req_id = r["id"]
-    sess = SESSIONS.get(req_id)
+    sess = store.load_session(req_id)
     snap = SNAPSHOTS.get(req_id) or {}
-    contract = STATE.get("contracts", {}).get(r.get("contract_id")) if r.get("contract_id") else None
+    contract = store.get_contract(r.get("contract_id"))
     if sess and getattr(sess, "contract", None) and sess.contract.get("amended_by") == "shopper":
         contract = sess.contract
-    pending_global = STATE.get("pending")
+    pending_global = store.get_pending()
     pending_approval = bool(
         (sess and sess.pending_cart)
         or (pending_global and pending_global.get("request_id") == req_id)
@@ -301,7 +294,7 @@ async def shopper_events(token: str):
         "checkout": sanitize_checkout(checkout_raw),
         "pending_approval": pending_approval,
         "agent_summary": agent_summary,
-        "events": _plain_events(_safe_shopper_events(req_id), contract),
+        "events": _plain_events(_safe_shopper_events(req_id, sess), contract),
     }
 
 

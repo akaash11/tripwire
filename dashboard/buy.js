@@ -116,13 +116,30 @@
   recBtn.addEventListener("pointercancel", stopRec);
   recBtn.addEventListener("pointerleave", stopRec);
 
+  // Hosted requests are capped at 4.5 MB by the platform: shrink the photo (longest edge 1600 px, JPEG) before upload.
+  async function shrinkPhoto(file) {
+    try {
+      if (!file || !file.type.startsWith("image/") || file.size < 600 * 1024) return file;
+      const bmp = await createImageBitmap(file, { imageOrientation: "from-image" });
+      const scale = Math.min(1, 1600 / Math.max(bmp.width, bmp.height));
+      const cv = document.createElement("canvas");
+      cv.width = Math.round(bmp.width * scale);
+      cv.height = Math.round(bmp.height * scale);
+      cv.getContext("2d").drawImage(bmp, 0, 0, cv.width, cv.height);
+      const blob = await new Promise((res) => cv.toBlob(res, "image/jpeg", 0.8));
+      return blob && blob.size < file.size ? new File([blob], "photo.jpg", { type: "image/jpeg" }) : file;
+    } catch (_) {
+      return file;
+    }
+  }
+
   formEl.addEventListener("submit", async (ev) => {
     ev.preventDefault();
     showError("");
 
     const fd = new FormData();
     const photo = photoEl.files && photoEl.files[0];
-    if (photo) fd.append("photo", photo);
+    if (photo) fd.append("photo", await shrinkPhoto(photo));
     if (audioBlob) {
       const ext = (audioBlob.type || "").includes("webm") ? "webm" : "m4a";
       fd.append("audio", audioBlob, "voice." + ext);

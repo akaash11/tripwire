@@ -74,9 +74,10 @@ SCHEMA = {
 }
 
 
-def _shrink_photo(path: pathlib.Path, max_px: int = 1024) -> tuple[bytes, str]:
+def _shrink_photo(src, max_px: int = 1024) -> tuple[bytes, str]:
+    """src: a path or raw bytes (hosted mode keeps uploads in memory, never on disk)."""
     from PIL import Image, ImageOps
-    img = ImageOps.exif_transpose(Image.open(path)).convert("RGB")
+    img = ImageOps.exif_transpose(Image.open(io.BytesIO(src) if isinstance(src, (bytes, bytearray)) else src)).convert("RGB")
     img.thumbnail((max_px, max_px))
     buf = io.BytesIO()
     img.save(buf, "JPEG", quality=85)
@@ -89,13 +90,18 @@ def _audio_mime(path: pathlib.Path) -> str:
             ".ogg": "audio/ogg", ".webm": "audio/webm"}.get(ext) or mimetypes.guess_type(path.name)[0] or "audio/m4a"
 
 
-def _blocks(audio: pathlib.Path | None, photo: pathlib.Path | None, text: str | None) -> list[dict]:
+def _blocks(audio, photo, text: str | None) -> list[dict]:
+    """audio: Path or (bytes, filename); photo: Path or bytes."""
     blocks: list[dict] = [{"type": "text", "text": PROMPT}]
     if text:
         blocks.append({"type": "text", "text": f"Typed request: {text}"})
     if audio:
-        blocks.append({"type": "audio", "mime_type": _audio_mime(audio),
-                       "data": base64.b64encode(audio.read_bytes()).decode()})
+        if isinstance(audio, tuple):
+            raw, name = audio
+            mime, data_b = _audio_mime(pathlib.Path(name or "a.m4a")), raw
+        else:
+            mime, data_b = _audio_mime(audio), audio.read_bytes()
+        blocks.append({"type": "audio", "mime_type": mime, "data": base64.b64encode(data_b).decode()})
     if photo:
         data, mime = _shrink_photo(photo)
         blocks.append({"type": "image", "mime_type": mime, "data": base64.b64encode(data).decode()})
@@ -113,8 +119,9 @@ def _call(model: str, blocks: list[dict], thinking: str | None = None):
     )
 
 
-def compile_contract(audio: str | None = None, photo: str | None = None, text: str | None = None,
+def compile_contract(audio: str | tuple | None = None, photo: str | bytes | None = None, text: str | None = None,
                      primary_timeout_s: int | None = None) -> dict:
+    """audio/photo: a file path, or in-memory data: audio=(bytes, filename), photo=bytes."""
     load_env()
     primary = os.environ.get("CONTRACT_MODEL", PRIMARY)
     fallback = os.environ.get("CONTRACT_FALLBACK_MODEL", FALLBACK)
@@ -122,8 +129,8 @@ def compile_contract(audio: str | None = None, photo: str | None = None, text: s
     timeout_s = primary_timeout_s if primary_timeout_s is not None else int(
         os.environ.get("CONTRACT_PRIMARY_TIMEOUT_S", str(PRIMARY_TIMEOUT_S))
     )
-    a = pathlib.Path(audio) if audio else None
-    p = pathlib.Path(photo) if photo else None
+    a = audio if isinstance(audio, tuple) else (pathlib.Path(audio) if audio else None)
+    p = photo if isinstance(photo, (bytes, bytearray)) else (pathlib.Path(photo) if photo else None)
     blocks = _blocks(a, p, text)
 
     attempts = []
