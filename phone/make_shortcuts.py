@@ -7,6 +7,7 @@
 Usage (tailnet set for the owner's phone; public set for anyone, via Funnel on :10000):
   python3 phone/make_shortcuts.py https://<machine>.<tailnet>.ts.net:10000/tripwire phone/build/public
   python3 phone/make_shortcuts.py https://<machine>.<tailnet>.ts.net/tripwire
+  python3 phone/make_shortcuts.py https://tripwire-labs.vercel.app phone/build/public   # hosted (v2.0): root, no /tripwire
   for n in "Tripwire Buy" "Tripwire Approve"; do
     shortcuts sign --mode anyone -i "phone/build/$n.unsigned.shortcut" -o "phone/build/$n.shortcut"; done
   open "phone/build/Tripwire Buy.shortcut"   # then "Tripwire Approve"; delete old copies first (re-import makes "Name 1")
@@ -21,8 +22,8 @@ import sys
 import uuid
 
 OUT = pathlib.Path(__file__).parent / "build"
-VERSION = "1.7"  # bump on every rebuild; Buy sends it as form field `client`, the page shows it
-# 1.0 first build · 1.1 file upload fix · 1.2 Buy opens /t/{token} · 1.3 version field, delivered-price quote · 1.4 shopper can raise budget · 1.6 'Check Shopify' Siri name · 1.7 off-catalog Shopify links
+VERSION = "2.0"  # bump on every rebuild; Buy sends it as form field `client`, the page shows it
+# 1.0 first build · 1.1 file upload fix · 1.2 Buy opens /t/{token} · 1.3 version field, delivered-price quote · 1.4 shopper can raise budget · 1.6 'Check Shopify' Siri name · 1.7 off-catalog Shopify links · 2.0 hosted on Vercel (laptop off), photo shrunk before upload (platform body limit 4.5 MB)
 
 
 def new_id() -> str:
@@ -78,15 +79,20 @@ def get_key(src_uid: str, src_name: str, key: str, uid: str) -> dict:
 
 
 def buy(base: str, name: str = "Tripwire Buy") -> list[dict]:
-    rec, cam, post, speak, tok = (new_id() for _ in range(5))
+    rec, cam, small, jpg, post, speak, tok = (new_id() for _ in range(7))
     return [
         action("comment", WFCommentActionText=f"{name} v{VERSION} ({base})"),
         action("recordaudio", rec),
         action("takephoto", cam, WFCameraCaptureShowPreview=True),
+        # Hosted requests are capped at 4.5 MB: shrink the photo (longest edge 1600 px) and send it as JPEG.
+        action("image.resize", small, WFImage=variable(output_ref(cam, "Photo")),
+               WFImageResizeKey="Longest Edge", WFImageResizeLength="1600"),
+        action("image.convert", jpg, WFInput=variable(output_ref(small, "Resized Image")),
+               WFImageFormat="JPEG", WFImageCompressionQuality=0.7),
         action("downloadurl", post, WFURL=f"{base}/request", WFHTTPMethod="POST", WFHTTPBodyType="Form",
                WFFormValues=fields([
                    ("audio", 5, file_param(output_ref(rec, "Recorded Audio"))),
-                   ("photo", 5, file_param(output_ref(cam, "Photo"))),
+                   ("photo", 5, file_param(output_ref(jpg, "Converted Image"))),
                    ("client", 0, text(f"{name} {VERSION}")),
                ])),
         get_key(post, "Contents of URL", "speak", speak),
@@ -165,10 +171,10 @@ def workflow(actions: list[dict], color: int, glyph: int) -> dict:
 
 def main() -> None:
     if len(sys.argv) not in (2, 3) or not sys.argv[1].startswith("https://"):
-        sys.exit("usage: make_shortcuts.py https://<host>/tripwire [out_dir]")
+        sys.exit("usage: make_shortcuts.py https://<host>[/tripwire] [out_dir]")
     base = sys.argv[1].rstrip("/")
-    if any(ch.isspace() for ch in base) or not base.endswith("/tripwire"):
-        sys.exit(f"bad base URL {base!r}: must be https://<host>[:port]/tripwire with no spaces")
+    if any(ch.isspace() for ch in base):
+        sys.exit(f"bad base URL {base!r}: must be https://<host>[:port][/tripwire] with no spaces")
     out = pathlib.Path(sys.argv[2]) if len(sys.argv) == 3 else OUT
     out.mkdir(parents=True, exist_ok=True)
     # The shortcut's name is its Siri phrase: "Hey Siri, Check Shopify" runs the same flow as Tripwire Buy.
