@@ -35,8 +35,8 @@ So the hangs come from requests running at the same time on this key (free-tier 
 ## Recommendation
 
 **1. Use Flash-Lite for the hosted app now** (contract, checker and agent), with these fixes:
-- One model call at a time per process (a lock), a 25 s timeout per call and one retry, in place of a 120 s hang.
-  This matches what worked one at a time.
+- One model call at a time (a lock), a real per-call timeout and retries, in place of a 120 s hang.
+  This matches what worked one at a time. (Built values are in "Step 1 done" below: 45 s, 3 retries.)
 - Prompt changes: every must clause names a concrete attribute visible in the photo (brand, flavor, size, color);
   never write "matches the item"; when no budget was said, the default covers typical shipping (at least $10).
 - Checker: `CHECKER_MODEL=gemini-3.5-flash-lite`. If it doesn't answer, the guard asks the shopper, as it does now.
@@ -59,8 +59,8 @@ cache. A smaller vision model only makes sense if Qwen3.8's speed becomes the pr
 **Built.** `common/modelcall.py` is now the one door for every Gemini call on the key (contract, checker, agent turns,
 Decisions). It serializes calls (a process lock; hosted also a Redis semaphore, `SET NX` with a TTL a few seconds longer
 than the call, through `RedisStore.lock_acquire/lock_release`, injected from `server/app.py`), puts a real HTTP timeout on
-each request (`HttpOptions.timeout`, 45 s; 60 s for agent turns; 10 s for Decisions), retries once on timeout, 429 or 5xx
-after 3 s, and logs every attempt with `log_usage` (a 429 shows as `error="429"`; the logged latency includes the wait for
+each request (`HttpOptions.timeout`, 45 s; 60 s for agent turns; 10 s for Decisions), retries up to 3 times on timeout, 429 or 5xx
+(waits 3, 6, 9 s plus jitter; Decisions 1 retry), and logs every attempt with `log_usage` (a 429 shows as `error="429"`; the logged latency includes the wait for
 the lock). The lock is released by the worker thread when the underlying call really ends, never when the watchdog gives up.
 Defaults: `CONTRACT_MODEL` and `CHECKER_MODEL` are `gemini-3.5-flash-lite` (env vars still override; `thinking_level` is
 still sent only to gemini-4 models). Prompt: every must clause names a checkable attribute, never "matches the item", and an
@@ -69,7 +69,7 @@ assumption line.
 
 **SDK finding (google-genai 3.6.1).** For the Interactions and Decisions clients the SDK retries by default: 5 attempts with
 0.5 to 8 s backoff, capped at about 30 s in total, on 408/429/5xx. That is the "~34 s" cluster. We now pass
-`HttpRetryOptions(attempts=1)`, so our one retry is the only one. A 50 ms test timeout produced `APITimeoutError` and exactly
+`HttpRetryOptions(attempts=1)`, so our own retries are the only ones. A 50 ms test timeout produced `APITimeoutError` and exactly
 two attempts.
 
 **Run deadline.** Hosted runs keep `RUN_DEADLINE_S = 190`. The old "90 s per model call" cap is replaced by: every call made
