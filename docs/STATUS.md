@@ -3,6 +3,32 @@
 Read first: [`EVENT_REQUIREMENTS.md`](EVENT_REQUIREMENTS.md) (rules), [`ARCHITECTURE.md`](ARCHITECTURE.md), [`TEAM_PLAN.md`](TEAM_PLAN.md).
 Update this file when you finish something. Real results only; mark anything not run as NOT RUN.
 
+## Hosted (v2.0), 2026-11-25
+Vercel (Hobby) + Upstash Redis (free), `https://tripwire-labs.vercel.app`. Real outputs from the **preview** deploy
+(`tripwire-labs-h4801kuvj`, branch `feat/flashlite-model-calls`); production is NOT deployed yet.
+
+| Check | Result |
+|---|---|
+| `pytest -q tests` | 73 passed (44 old, 16 hosted with a fake Redis, 12 model-call, 1 more) |
+| Import on a read-only tree (no `uploads/ data/ logs/ .env`, `VERCEL=1`) | `/health` 200, `/pubkey` 200, `/install` 200, `/buy` 200, `/` 302, `/shortcuts/buy` 200, `/admin` 403; no dirs created |
+| Preview `/health /install /buy /shortcuts/buy /tripwire/install` | all 200 |
+| `/shortcuts/buy` vs local signed file | `cmp`: identical (also identical to `phone/dist/Tripwire Buy.shortcut`) |
+| `/admin /api/state /api/admin/state /api/admin/live /tripwire/admin` | all 403 |
+| "one can of original Red Bull" | contract 17 s, run 65 s, `ask_human`, pending cart, no checkout link in `/w` or `/events` |
+| Approve that cart | `ok`, link returned only on Approve (https, 216 chars, not printed); status `approve`; second Approve refused |
+| "apple strawberry mini fruit bars, budget 5 dollars" | run 87 s, `over_budget`, offer: $0.80 item, $9.38 delivered, budget $5.00 |
+| Raise budget, then Approve (same request, session loaded from Redis) | raise ok, new cap 938, `ask_human` pending; Approve ok, link returned |
+| 11 empty `POST /request` fired in parallel | 2 x 400, 9 x 429 (limit engaged; the minute already held earlier test hits) |
+| Replay against **real** Redis | NOT RUN: `vercel env pull` returns masked values, so no local script can reach Upstash. Covered by the fake-Redis test (atomic set-if-absent, replay refused) and by the Approve above, which consumed its nonce in real Redis without error |
+| Daily cap `DAILY_REQUEST_CAP` | covered by the fake-Redis test (over cap: HTTP 200, `speak`, no token); NOT RUN against the preview |
+| iPhone run of Shortcut 2.0, Tailscale off | NOT RUN (waiting for Akaash). The Resize/Convert Image actions were added from parameter names found in macOS's Shortcuts data and are untested on a phone |
+
+Found while testing:
+- Gemini 4 Neon did not answer on the owner's key (no reply in 15 s, 40 s); the PR above switches contract and checker to Flash-Lite.
+- A stalled Gemini call once ran into Vercel's 300 s kill (nothing saved). Now every call is bounded, the run deadline is 190 s, and a dead run shows "start again" (page marks it expired after ~120 s without an event).
+- `vercel.json` needs `"framework": "fastapi"` (the project was a static preset) and the newer CLI (54.14 rejected the config).
+- Python 3.14 is pinned in `.python-version`.
+
 ## Working now (verified end to end)
 | Piece | File | Verified |
 |---|---|---|
