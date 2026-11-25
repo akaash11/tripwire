@@ -1,18 +1,17 @@
-"""Neon contract checker, used only on Decision 1 escalation. Same call style as agent/contract.py."""
+"""Contract checker (Flash-Lite by default; Neon via CHECKER_MODEL), used only on Decision 1 escalation.
+Calls go through common.modelcall (one at a time on the key, real timeout, one retry)."""
 
 from __future__ import annotations
 
-import concurrent.futures
 import json
 import os
-import time
 
-from common import load_env, log_usage
+from common import load_env, modelcall
 
 from .listing import input_blocks
 
-MODEL = os.environ.get("CHECKER_MODEL", "gemini-4-neon")
-TIMEOUT_S = int(os.environ.get("CHECKER_TIMEOUT_S", "30"))
+MODEL = os.environ.get("CHECKER_MODEL", "gemini-3.5-flash-lite")
+TIMEOUT_S = int(os.environ.get("CHECKER_TIMEOUT_S", "45"))
 THINKING = os.environ.get("CHECKER_THINKING", "low")
 
 SCHEMA = {
@@ -58,16 +57,16 @@ def _contract_brief(contract: dict) -> str:
     )
 
 
-def _call(blocks: list[dict]):
-    from google import genai
+def _call(blocks: list[dict], timeout_s: float | None = None):
+    def go(client):
+        return client.interactions.create(
+            model=MODEL,
+            input=blocks,
+            generation_config={"thinking_level": THINKING} if str(MODEL).startswith("gemini-4") else None,
+            response_format={"type": "text", "mime_type": "application/json", "schema": SCHEMA},
+        )
 
-    client = genai.Client()
-    return client.interactions.create(
-        model=MODEL,
-        input=blocks,
-        generation_config={"thinking_level": THINKING} if str(MODEL).startswith("gemini-4") else None,
-        response_format={"type": "text", "mime_type": "application/json", "schema": SCHEMA},
-    )
+    return modelcall.call(go, model=MODEL, job="contract_checker", timeout_s=timeout_s)
 
 
 def _unavailable(reason: str) -> dict:
@@ -97,25 +96,13 @@ def check_with_neon(contract: dict, products: list[dict] | None = None, merchant
         if msgs:
             blocks.append({"type": "text", "text": msgs})
 
-    started = time.time()
-    pool = concurrent.futures.ThreadPoolExecutor(max_workers=1)
-    fut = pool.submit(_call, blocks)
     try:
-        it = fut.result(timeout=timeout_s)
-        ms = int((time.time() - started) * 1000)
-        log_usage(MODEL, "contract_checker", ms, it)
+        it = _call(blocks, timeout_s)
         body = json.loads(it.output_text)
-    except concurrent.futures.TimeoutError:
-        ms = int((time.time() - started) * 1000)
-        log_usage(MODEL, "contract_checker", ms, None, error="timeout")
-        pool.shutdown(wait=False, cancel_futures=True)
-        return _unavailable(f"Neon checker: no reply in {timeout_s}s; asking a human")
-    except Exception as exc:  # noqa: BLE001
-        ms = int((time.time() - started) * 1000)
-        log_usage(MODEL, "contract_checker", ms, None, error=type(exc).__name__)
-        pool.shutdown(wait=False, cancel_futures=True)
-        return _unavailable("Neon checker: error; asking a human")
-    pool.shutdown(wait=False, cancel_futures=True)
+    except modelcall.ModelTimeout:
+        return _unavailable(f"Checker: no reply in {timeout_s}s; asking a human")
+    except Exception:  # noqa: BLE001
+        return _unavailable("Checker: error; asking a human")
 
     passed = bool(body.get("pass"))
     failed = [str(x) for x in (body.get("failed_clauses") or [])]

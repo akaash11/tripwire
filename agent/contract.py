@@ -1,14 +1,15 @@
 """Intent Contract compiler: voice + photo -> signed contract. Owner: Akaash.
 
-Gemini 4 Neon listens to the request and looks at the photo (e.g. the charger label, or the item to match),
-then writes the contract. Falls back to Flash if Neon doesn't answer in time, and records which model ran.
+Gemini 3.5 Flash-Lite listens to the request and looks at the photo (e.g. the charger label, or the item to match),
+then writes the contract. Every call goes through common.modelcall (one call at a time on the key, a real HTTP
+timeout, one retry). If CONTRACT_MODEL is set to a different model (e.g. Neon) the fallback model is tried after it.
+The result records which model ran.
 
 CLI test:  .venv/bin/python -m agent.contract uploads/<audio>.m4a uploads/<photo>.jpg
 """
 from __future__ import annotations
 
 import base64
-import concurrent.futures as cf
 import datetime as dt
 import io
 import json
@@ -18,16 +19,17 @@ import secrets
 import sys
 import time
 
-from common import load_env, log_usage
+from common import load_env, modelcall
 from common.signing import sign
 
 import os
 
-# Override from the dashboard / .env. With the event tier 3 key Neon answers voice + photo in ~16s;
-# Flash-Lite (~4-6s) is the fallback.
-PRIMARY = os.environ.get("CONTRACT_MODEL", "gemini-4-neon")
+# Override from the dashboard / .env. The owner's key can't reach Neon (it times out), so Flash-Lite (~4 s) is the
+# default for both; Neon answered voice + photo in ~16 s on the event key and still works if set as CONTRACT_MODEL.
+PRIMARY = os.environ.get("CONTRACT_MODEL", "gemini-3.5-flash-lite")
 FALLBACK = os.environ.get("CONTRACT_FALLBACK_MODEL", "gemini-3.5-flash-lite")
-PRIMARY_TIMEOUT_S = int(os.environ.get("CONTRACT_PRIMARY_TIMEOUT_S", "40"))
+PRIMARY_TIMEOUT_S = int(os.environ.get("CONTRACT_PRIMARY_TIMEOUT_S", "45"))
+BUDGET_FLOOR_CENTS = 1000  # an unstated budget must cover the item plus typical shipping and tax
 THINKING = os.environ.get("CONTRACT_THINKING", "low")  # Neon: low / medium / high (default) / xhigh
 CONTRACT_TTL_S = 30 * 60
 
@@ -39,10 +41,13 @@ Rules:
 - Transcribe the request faithfully into user_request.
 - photo_observations: concrete facts you can read or see in the photo (text on labels, wattage, color, size, model).
 - must: specs the purchase MUST satisfy, combining voice and photo (e.g. photo shows a 100W charger -> "supports 100W charging").
-  Each clause short and checkable against a product listing.
+  Each clause is short and names a concrete attribute that can be checked against a product listing: brand, flavor,
+  size, color, model, count, wattage, material. Never write a clause like "matches the item", "match the item
+  requested" or "as shown in the photo": read the photo and name the brand, flavor, size and so on instead.
 - must_not: things that would defeat the purpose (e.g. "data-only or charge-limited cable", "different color than asked").
 - max_total_cents: the budget in cents for the DELIVERED total (item + shipping + tax). If none was given, use a
-  reasonable cap for the item including typical shipping, set budget_stated false, and say so in assumptions.
+  reasonable cap that covers the item plus typical shipping and tax (never below $10 even for a cheap item),
+  set budget_stated false, and say so in assumptions.
 - budget_stated: true only if the shopper said a price limit.
 - returns: "required" if they asked for returnable / free returns, else "preferred".
 - search_query: a short query for a product catalog.
@@ -108,15 +113,28 @@ def _blocks(audio, photo, text: str | None) -> list[dict]:
     return blocks
 
 
-def _call(model: str, blocks: list[dict], thinking: str | None = None):
-    from google import genai
-    client = genai.Client()
+def _call(model: str, blocks: list[dict], thinking: str | None = None, timeout_s: float | None = None,
+          retries: int = 1):
+    """One contract model call through the shared helper (lock, HTTP timeout, retry on timeout/429/5xx)."""
     level = thinking or os.environ.get("CONTRACT_THINKING", THINKING)
-    return client.interactions.create(
-        model=model, input=blocks,
-        generation_config={"thinking_level": level} if model.startswith("gemini-4") else None,
-        response_format={"type": "text", "mime_type": "application/json", "schema": SCHEMA},
-    )
+
+    def go(client):
+        return client.interactions.create(
+            model=model, input=blocks,
+            generation_config={"thinking_level": level} if model.startswith("gemini-4") else None,
+            response_format={"type": "text", "mime_type": "application/json", "schema": SCHEMA},
+        )
+
+    return modelcall.call(go, model=model, job="contract", timeout_s=timeout_s, retries=retries)
+
+
+def apply_budget_floor(body: dict) -> None:
+    """No budget stated: the cap must cover the item plus shipping and tax, so never below $10."""
+    if not body.get("budget_stated") and int(body.get("max_total_cents") or 0) < BUDGET_FLOOR_CENTS:
+        was = int(body.get("max_total_cents") or 0)
+        body["max_total_cents"] = BUDGET_FLOOR_CENTS
+        body["assumptions"] = list(body.get("assumptions") or []) + [
+            f"No budget was stated; raised the default from ${was / 100:.2f} to $10.00 to cover shipping and tax."]
 
 
 def compile_contract(audio: str | tuple | None = None, photo: str | bytes | None = None, text: str | None = None,
@@ -135,29 +153,29 @@ def compile_contract(audio: str | tuple | None = None, photo: str | bytes | None
 
     attempts = []
     body = None
-    pool = cf.ThreadPoolExecutor(max_workers=2)
-    chain = [(primary, timeout_s)] + ([(fallback, 60)] if fallback and fallback != primary else [])
-    for model, timeout in chain:
+    # Same model twice (the default): the helper's one retry IS the fallback. Different models: one try on the
+    # primary, then the fallback gets the retry.
+    retry = modelcall.DEFAULT_RETRIES
+    chain = [(primary, retry if fallback == primary or not fallback else 0)]
+    if fallback and fallback != primary:
+        chain.append((fallback, retry))
+    for model, retries in chain:
         t0 = time.time()
-        fut = pool.submit(_call, model, blocks, thinking)
         try:
-            it = fut.result(timeout=timeout)
+            it = _call(model, blocks, thinking, timeout_s, retries)
             ms = int((time.time() - t0) * 1000)
             body = json.loads(it.output_text)
-            log_usage(model, "contract", ms, it)
             attempts.append({"model": model, "ok": True, "latency_ms": ms})
             break
-        except cf.TimeoutError:
+        except modelcall.ModelTimeout:
             ms = int((time.time() - t0) * 1000)
-            log_usage(model, "contract", ms, None, error="timeout")
-            attempts.append({"model": model, "ok": False, "latency_ms": ms, "error": f"no reply in {timeout}s"})
+            attempts.append({"model": model, "ok": False, "latency_ms": ms, "error": f"no reply in {timeout_s}s"})
         except Exception as e:  # noqa: BLE001
             ms = int((time.time() - t0) * 1000)
-            log_usage(model, "contract", ms, None, error=type(e).__name__)
             attempts.append({"model": model, "ok": False, "latency_ms": ms, "error": f"{type(e).__name__}: {e}"[:300]})
-    pool.shutdown(wait=False, cancel_futures=True)
     if body is None:
         raise RuntimeError(f"contract compile failed: {attempts}")
+    apply_budget_floor(body)
 
     now = dt.datetime.now(dt.timezone.utc)
     contract = {

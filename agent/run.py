@@ -12,11 +12,12 @@ import os
 import sys
 import time
 
-from common import load_env, log_usage
+from common import load_env, modelcall
 from agent.tools import TOOLS, ShopSession
 
 AGENT = os.environ.get("AGENT_ID", "antigravity-preview-09-2026")
 MAX_TURNS = 10
+AGENT_CALL_TIMEOUT_S = float(os.environ.get("AGENT_CALL_TIMEOUT_S", "60"))
 
 INSTRUCTIONS = """You are a shopping agent. Buy exactly what the shopper's Intent Contract below asks for.
 
@@ -50,17 +51,21 @@ class RunCancelled(RuntimeError):
 
 def run(contract: dict, session: ShopSession | None = None, model: str | None = None, on_event=None,
         deadline: float | None = None) -> ShopSession:
-    load_env()
-    from google import genai
+    try:
+        return _run(contract, session, model, on_event, deadline)
+    finally:
+        modelcall.set_deadline(None)  # worker threads are reused; don't leak this run's deadline
 
+
+def _run(contract, session, model, on_event, deadline) -> ShopSession:
+    load_env()
     model = model or os.environ.get("AGENT_MODEL", "gemini-3.5-flash-lite")
     s = session or ShopSession(contract, on_event=on_event)
     emit = s.on_event
-    http = {"api_version": "v1beta"}
-    if deadline is not None:
-        # Hosted: one stalled model call must not outlive the function (Vercel kills it at 300 s with nothing saved).
-        http["timeout"] = 90_000  # ms; with the 190 s deadline the worst case is ~280 s
-    client = genai.Client(http_options=http)
+    # Hosted: one stalled model call must not outlive the function (Vercel kills it at 300 s with nothing saved).
+    # Every model call (agent turns, plus the checker and Decisions calls the tools make on this thread) goes through
+    # common.modelcall: 45 s HTTP timeout (60 s for agent turns), one retry, and never past `deadline` (an attempt gets at least 10 s).
+    modelcall.set_deadline(deadline)
     cfg = {"type": "antigravity", "model": model}
 
     def check_deadline() -> None:
@@ -77,9 +82,10 @@ def run(contract: dict, session: ShopSession | None = None, model: str | None = 
         + json.dumps(_agent_contract(contract), indent=1)
     )
     check_deadline()
-    it = client.interactions.create(agent=AGENT, environment="remote", tools=TOOLS, agent_config=cfg,
-                                    input=prompt)
-    log_usage(model, "agent", int((time.time() - t0) * 1000), it)
+    it = modelcall.call(
+        lambda client: client.interactions.create(agent=AGENT, environment="remote", tools=TOOLS, agent_config=cfg,
+                                                  input=prompt),
+        model=model, job="agent", api_version="v1beta", timeout_s=AGENT_CALL_TIMEOUT_S)
     emit("agent_turn", turn=1, status=it.status, latency_ms=int((time.time() - t0) * 1000))
 
     for turn in range(2, MAX_TURNS + 1):
@@ -106,10 +112,13 @@ def run(contract: dict, session: ShopSession | None = None, model: str | None = 
             return s
         check_deadline()
         t1 = time.time()
-        it = client.interactions.create(agent=AGENT, previous_interaction_id=it.id, environment=it.environment_id,
-                                        tools=TOOLS, agent_config=cfg, input=results)
+        prev_id, env_id = it.id, it.environment_id
+        it = modelcall.call(
+            lambda client: client.interactions.create(agent=AGENT, previous_interaction_id=prev_id,
+                                                      environment=env_id, tools=TOOLS, agent_config=cfg,
+                                                      input=results),
+            model=model, job="agent", api_version="v1beta", timeout_s=AGENT_CALL_TIMEOUT_S)
         ms = int((time.time() - t1) * 1000)
-        log_usage(model, "agent", ms, it)
         emit("agent_turn", turn=turn, status=it.status, latency_ms=ms)
         if s.pending_cart or s.continue_url:
             # Outcome decided; let the agent finish its message on this turn and stop.

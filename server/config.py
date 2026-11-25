@@ -37,11 +37,11 @@ ALLOWED_MODELS = [
 ALLOWED_THINKING = ["low", "medium", "high", "xhigh"]
 
 MODEL_DEFAULTS = {
-    "CONTRACT_MODEL": "gemini-4-neon",
+    "CONTRACT_MODEL": "gemini-3.5-flash-lite",
     "CONTRACT_FALLBACK_MODEL": "gemini-3.5-flash-lite",
     "CONTRACT_THINKING": "low",
     "AGENT_MODEL": "gemini-3.5-flash-lite",
-    "CHECKER_MODEL": "gemini-4-neon",
+    "CHECKER_MODEL": "gemini-3.5-flash-lite",
     "ATTACK_MODEL": "gemini-4-carbon",
 }
 

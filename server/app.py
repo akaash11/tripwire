@@ -25,7 +25,7 @@ from fastapi.responses import JSONResponse
 
 import common
 import guard
-from common import HOSTED, load_env
+from common import HOSTED, load_env, modelcall
 from server import config, persistence
 from server.store import STALE_AFTER_S, make_store
 
@@ -57,8 +57,10 @@ if store.nonce_backend is not None:
     guard.replay.set_nonce_backend(store.nonce_backend)  # replay protection in Redis (atomic set-if-absent)
 if HOSTED:
     common.usage_hook = store.add_tokens  # no usage file on a read-only disk; count tokens in Redis
+    if hasattr(store, "lock_acquire"):
+        modelcall.set_store(store)  # one Gemini call at a time across all Vercel instances (Redis semaphore)
 
-RUN_DEADLINE_S = 190  # the agent run must finish inside one function call (Vercel Hobby allows up to 300 s)
+RUN_DEADLINE_S = 190  # one function call (Vercel allows 300 s); common.modelcall never waits on or starts a model call past it
 
 
 def event(kind: str, **data) -> None:

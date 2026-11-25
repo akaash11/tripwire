@@ -333,6 +333,16 @@ class RedisStore:
     def is_cancelled(self, req_id: str) -> bool:
         return self.c.command("GET", self._k("cancel", req_id)) is not None
 
+    # model-call semaphore (common.modelcall): one Gemini call at a time across all Vercel instances
+    def lock_acquire(self, name: str, token: str, ttl_s: int) -> bool:
+        return self.c.command("SET", self._k("mlock", name), token, "NX", "EX", int(ttl_s)) == "OK"
+
+    def lock_release(self, name: str, token: str) -> None:
+        """Delete the lock only if it is still ours (the TTL may have handed it on)."""
+        k = self._k("mlock", name)
+        if self.c.command("GET", k) == token:
+            self.c.command("DEL", k)
+
     # limits
     def rate_hit(self, ip: str, per_ip: int, global_limit: int) -> bool:
         minute = str(int(time.time() // 60))
