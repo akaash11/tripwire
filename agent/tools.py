@@ -88,7 +88,48 @@ class ShopSession:
         self._checkout_id: str | None = None  # secret-bearing; server-side only for get_checkout
         self._shop_domain: str | None = None
         self.pending_cart: dict | None = None
+        self.cancelled = False                # set when the run's deadline passes or the request expired
         self.on_event = on_event or (lambda kind, **d: None)
+
+    # ---- hosted mode: carry the session between serverless calls ---------------------------------------------------
+    def to_state(self, enc) -> dict:
+        """JSON-safe state needed after the run. `enc` encrypts a secret string (checkout id, continue_url, the raw
+        over-budget checkout); nothing secret is stored in the clear."""
+        ob = getattr(self, "over_budget", None)
+        keep_variants = {l["variant_id"] for c in self.carts.values() for l in c["lines"]}
+        if ob:
+            keep_variants |= {l["variant_id"] for l in ob["cart"]["lines"]}
+        bound = guard.replay.export_bound(self.contract["contract_id"])
+        return {
+            "contract": self.contract, "carts": self.carts, "verdict": self.verdict, "checkout": self.checkout,
+            "pending_cart_id": (self.pending_cart or {}).get("cart_id"),
+            "shop_domain": self._shop_domain, "checkout_cart": getattr(self, "_checkout_cart", None),
+            "checkout_id": enc(self._checkout_id), "continue_url": enc(self.continue_url),
+            "over_budget": ({**{k: v for k, v in ob.items() if k not in ("checkout", "cart")},
+                             "cart_id": ob["cart"]["cart_id"],
+                             "checkout": enc(json.dumps(ob["checkout"]))} if ob else None),
+            "agent_summary": getattr(self, "agent_summary", None), "last_problem": getattr(self, "last_problem", None),
+            "quotes": getattr(self, "quotes", 0),
+            "products": {vid: p for vid, p in self.products.items() if vid in keep_variants},
+            "bound": bound,
+        }
+
+    @classmethod
+    def from_state(cls, st: dict, dec, on_event=None) -> "ShopSession":
+        s = cls(st["contract"], on_event=on_event)
+        s.carts, s.verdict, s.checkout = st.get("carts") or {}, st.get("verdict"), st.get("checkout")
+        s.products = st.get("products") or {}
+        pid = st.get("pending_cart_id")
+        s.pending_cart = s.carts.get(pid) if pid else None
+        s._shop_domain, s._checkout_cart = st.get("shop_domain"), st.get("checkout_cart")
+        s._checkout_id, s.continue_url = dec(st.get("checkout_id")), dec(st.get("continue_url"))
+        ob = st.get("over_budget")
+        if ob:
+            s.over_budget = {**{k: v for k, v in ob.items() if k not in ("checkout", "cart_id")},
+                             "cart": s.carts[ob["cart_id"]], "checkout": json.loads(dec(ob["checkout"]))}
+        s.agent_summary, s.last_problem, s.quotes = st.get("agent_summary"), st.get("last_problem"), st.get("quotes", 0)
+        guard.replay.import_bound(st.get("bound"))
+        return s
 
     # ---- tools -------------------------------------------------------------------------------------------------
     def search_products(self, query: str, max_price_cents: int | None = None) -> dict:
@@ -370,6 +411,8 @@ class ShopSession:
     def open_checkout(self, cart: dict) -> dict:
         """Hand over the REAL Shop checkout (places no order). Reuses the quoted one; the shopper pays on continue_url.
         One contract -> one handed-over checkout: the contract nonce is used up here."""
+        if self.cancelled:
+            raise shop_mcp.ShopError("This request expired before checkout was opened.")
         guard.replay.consume_nonce(self.contract.get("nonce"))
         if not (getattr(self, "_checkout_cart", None) == cart["cart_id"] and self.continue_url):
             line = cart["lines"][0]
@@ -398,6 +441,8 @@ class ShopSession:
 
     def dispatch(self, name: str, args: dict) -> dict:
         args = args or {}
+        if self.cancelled:
+            return {"error": "This request has expired. Stop."}
         if guard.scan_tool_args(args):
             self.on_event("canary", tool=name, tripped=True)
             if name == "request_checkout":

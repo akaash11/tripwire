@@ -25,7 +25,14 @@ sees a payment link, and only you can change the budget."
 
 **Platform hardening:** every request has its own unguessable link (people can't see or approve each other's
 carts); the admin page and APIs answer only on the laptop itself (403 through Tailscale/Funnel); rate limit 10/min;
-15 MB upload cap; checkout links and ids are never logged or shown except to the shopper; keys only in `.env`.
+15 MB upload cap; checkout links and ids are never logged or shown except to the shopper; keys only in `.env` (laptop) or
+encrypted Vercel env vars (hosted).
+
+**Hosted (Vercel + Upstash Redis):** contract nonces are an atomic Redis set-if-absent (replay protection survives
+every serverless instance); rate limit per IP and global, plus a daily request cap (`DAILY_REQUEST_CAP`, default 50;
+over it the app says "resting for today"); the Shop checkout id and `continue_url` are stored AES-GCM encrypted with a
+key derived from the signing key, never in the clear; uploads stay in memory (no disk); the admin pages and APIs
+answer 403 for every request online (no header or Host value is trusted); the signing key is an encrypted env var.
 
 ## Proof
 35 live cases, 2 runs: no guard let **23/23** attacks through, a rules-only guard **10/23**, Tripwire **0/23**.

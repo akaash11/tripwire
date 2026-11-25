@@ -18,6 +18,24 @@ _memory_nonces: set[str] = set()
 _nonce_path: Path | None = None
 _loaded_path: Path | None = None
 _bound: dict[str, dict] = {}
+_nonce_backend = None  # hosted mode: object with is_used(nonce) and consume(nonce); None = data/used_nonces.json
+
+
+def set_nonce_backend(backend) -> None:
+    """Hosted mode (Redis): nonces use an atomic set-if-absent instead of the local file."""
+    global _nonce_backend
+    _nonce_backend = backend
+
+
+def export_bound(contract_id: str) -> dict:
+    """Bound cart fingerprints for one contract, so they survive between serverless invocations."""
+    prefix = f"{contract_id}:"
+    return {k: v for k, v in _bound.items() if k.startswith(prefix)}
+
+
+def import_bound(records: dict | None) -> None:
+    for k, v in (records or {}).items():
+        _bound.setdefault(k, v)
 
 
 def nonce_path() -> Path:
@@ -95,6 +113,9 @@ def consume_nonce(nonce: str | None) -> None:
     """Record a nonce only after an approved receipt is issued."""
     if not nonce:
         return
+    if _nonce_backend is not None:
+        _nonce_backend.consume(str(nonce))
+        return
     store = _load_nonces()
     token = str(nonce)
     if token not in store:
@@ -127,7 +148,7 @@ def verify_contract(contract: dict, *, now: datetime | None = None) -> tuple[boo
     if not nonce:
         return False, "contract: missing nonce"
     nonce = str(nonce)
-    if nonce in _load_nonces():
+    if (_nonce_backend.is_used(nonce) if _nonce_backend is not None else nonce in _load_nonces()):
         return False, "contract: nonce already used (replay)"
     return True, ""
 

@@ -9,31 +9,22 @@ So Decision 1 alone under-calls injection: treat injection > 0.1 as "escalate", 
 """
 from __future__ import annotations
 
-import time
-
-from common import load_env, log_usage
+from common import load_env, modelcall
 
 MODEL = "gemini-decision-1"
-_client = None
-
-
-def client():
-    global _client
-    if _client is None:
-        load_env()
-        from google import genai
-        _client = genai.Client(http_options={"api_version": "v1beta"})
-    return _client
+DECISIONS_TIMEOUT_S = 10.0  # median answer is ~0.9 s; the gate gives up after 8 s anyway
 
 
 def ask(input_blocks, questions: dict) -> dict:
     """input_blocks: str or list of Interactions content blocks (text / image {uri|data, mime_type} / audio / pdf).
     questions: {key: {"type": "noul"|"choice"|"score", "instructions": str, "criteria": ...}}
     Returns {key: {"noul"|"choice"|"score": ..., "confidence": float, "probabilities": ...}}.
-    Raises on safety blocks (HTTP 400): callers must turn that into ask_human, never approve."""
-    t0 = time.time()
-    r = client().decisions.create(model=MODEL, input=input_blocks, questions=questions)
-    log_usage(MODEL, "decisions", int((time.time() - t0) * 1000), None, n_questions=len(questions))
+    Raises on safety blocks (HTTP 400): callers must turn that into ask_human, never approve.
+    The call goes through common.modelcall (one at a time on the key, real timeout, one retry, logged)."""
+    load_env()
+    r = modelcall.call(
+        lambda client: client.decisions.create(model=MODEL, input=input_blocks, questions=questions),
+        model=MODEL, job="decisions", api_version="v1beta", timeout_s=DECISIONS_TIMEOUT_S, retries=1, n_questions=len(questions))
     out = {}
     for k, a in r.answers.items():
         d = a.model_dump() if hasattr(a, "model_dump") else dict(a)

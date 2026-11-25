@@ -12,24 +12,25 @@ from fastapi import APIRouter
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 
 router = APIRouter()
-VERSION = "1.7"  # bump with phone/make_shortcuts.py VERSION; shown on the page and logged per request
+VERSION = "2.0"  # bump with phone/make_shortcuts.py VERSION; shown on the page and logged per request
 DASHBOARD_DIR = pathlib.Path(__file__).resolve().parents[1] / "dashboard"
 
 
 def _find(token: str):
-    from server.app import STATE, SESSIONS
-    r = next((r for r in STATE["requests"] if r.get("token") == token), None)
-    return r, (SESSIONS.get(r["id"]) if r else None)
+    """(request, session) for this token. Hosted: the session is loaded from Redis (secrets decrypted in memory only)."""
+    from server.app import expire_if_stale, store
+    r = expire_if_stale(store.find_by_token(token))
+    return r, (store.load_session(r["id"]) if r else None)
 
 
 @router.get("/w/{token}")
 async def web_status(token: str):
-    from server.app import SNAPSHOTS, STATE
+    from server.app import SNAPSHOTS, store
     r, s = _find(token)
     if not r:
         return JSONResponse({"error": "not found"}, status_code=404)
     snap = SNAPSHOTS.get(r["id"]) or {}
-    c = STATE.get("contracts", {}).get(r.get("contract_id")) if r.get("contract_id") else None
+    c = store.get_contract(r.get("contract_id"))
     out = {"status": r["status"], "client": r.get("client"), "server_version": VERSION, "contract": None, "pending": None, "verdict": None, "checkout": None,
            "agent_summary": getattr(s, "agent_summary", None) if s else snap.get("agent_summary"), "problem": r.get("problem"),
            "offer": r.get("offer")}
@@ -58,7 +59,7 @@ async def web_status(token: str):
 async def web_raise_budget(token: str, body: dict):
     """Shopper taps 'Raise budget' on their own request page. Only the cheapest quoted option, only by the shopper."""
     import asyncio
-    from server.app import STATE, persist
+    from server.app import store
     r, s = _find(token)
     off = (r or {}).get("offer")
     if not r or not s or not off or off["cart_id"] != body.get("cart_id"):
@@ -67,29 +68,29 @@ async def web_raise_budget(token: str, body: dict):
     if not res:
         return {"ok": False, "speak": "That option is no longer available."}
     if r.get("contract_id") and getattr(s, "contract", None):
-        STATE.setdefault("contracts", {})[r["contract_id"]] = s.contract
-    r["offer"], r["problem"], r["status"] = None, None, res["verdict"]
+        store.save_contract(s.contract)
+    store.update_request(r["id"], offer=None, problem=None, status=res["verdict"])
     if s.pending_cart:
         c = s.pending_cart
         v = s.verdict or {}
-        STATE["pending"] = {"cart_id": c["cart_id"], "request_id": r["id"], "verdict": v.get("verdict"),
-                            "summary": f"Agent wants: {c['summary']}. You asked: {s.contract.get('summary')}",
-                            "reason": "; ".join(v.get("xray", {}).get("reasons", []))[:300]}
-    persist()
+        store.set_pending({"cart_id": c["cart_id"], "request_id": r["id"], "verdict": v.get("verdict"),
+                           "summary": f"Agent wants: {c['summary']}. You asked: {s.contract.get('summary')}",
+                           "reason": "; ".join(v.get("xray", {}).get("reasons", []))[:300]})
+    store.save_session(r["id"], s)
     return {"ok": res["verdict"] != "block", "speak": res.get("reason") or "Budget raised. Review and approve."}
 
 
 @router.post("/w/{token}/pay")
 async def web_pay(token: str):
     """Tripwire auto-approved (no human step needed): hand the shopper the merchant's checkout link on tap."""
-    from server.app import STATE, persist
+    from server.app import persist, store
     r, s = _find(token)
     if not r or not s or not s.continue_url or s.pending_cart:
         return {"ok": False, "speak": "No checkout ready for this request.", "url": ""}
-    if not any(o.get("cart_id") == (s.checkout or {}).get("cart_id") for o in STATE["orders"]):
-        STATE["orders"].append({"cart_id": (s.checkout or {}).get("cart_id"), "request_id": r["id"], "ts": __import__("time").time(),
-                                "checkout": s.checkout, "status": (s.checkout or {}).get("status") or "awaiting_payment",
-                                "agent_summary": getattr(s, "agent_summary", None)})
+    if not store.has_order((s.checkout or {}).get("cart_id"), r["id"]):
+        store.add_order({"cart_id": (s.checkout or {}).get("cart_id"), "request_id": r["id"], "ts": __import__("time").time(),
+                         "checkout": s.checkout, "status": (s.checkout or {}).get("status") or "awaiting_payment",
+                         "agent_summary": getattr(s, "agent_summary", None)})
         persist()
     return {"ok": True, "url": s.continue_url, "speak": "Opening the Shop checkout."}
 
@@ -102,6 +103,11 @@ async def web_decide(token: str, body: dict):
         return {"ok": False, "speak": "Nothing to approve for this request.", "url": ""}
     decision = "approve" if str(body.get("decision", "")).lower() == "approve" else "block"
     return await decide({"cart_id": s.pending_cart["cart_id"], "request_id": r["id"]}, decision)
+
+
+@router.get("/")
+async def root():
+    return RedirectResponse(url="buy", status_code=302)
 
 
 @router.get("/buy", response_class=HTMLResponse)
@@ -126,7 +132,7 @@ async def track_page(token: str):
     return RedirectResponse(url=f"../r/{token}", status_code=302)
 
 
-PUBLIC_BASE = "https://akaashs-macbook-pro.tail3c0993.ts.net:10000/tripwire"  # Funnel; override with TRIPWIRE_PUBLIC_BASE
+PUBLIC_BASE = "https://tripwire-labs.vercel.app"  # hosted; override with TRIPWIRE_PUBLIC_BASE (e.g. the laptop Funnel)
 
 
 def _qr_svg(url: str) -> str:

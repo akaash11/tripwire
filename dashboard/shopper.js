@@ -283,7 +283,7 @@
     if (status === "expired") {
       return {
         headline: "Session expired",
-        sub: "The server restarted, so this session can no longer be approved.",
+        sub: "This session ended before it finished, so nothing was bought. Start again.",
         tone: "info",
         stepIdx: -1,
         stepState: "done",
@@ -786,9 +786,9 @@
     // 8. Problem / Expired / No checkout / Agent note
     if (status === "expired") {
       frag.appendChild(makeBubble("system", "Tripwire", null, [
-        el("div", { style: "font-weight:750;" }, "This session expired after a server restart."),
+        el("div", { style: "font-weight:750;" }, "This session expired."),
         el("div", { className: "small muted", style: "margin-top:4px;" },
-          "Live shopping sessions aren't kept across restarts. Start a fresh request to shop again."),
+          w.problem || "Live shopping sessions can't be resumed. Start a fresh request to shop again."),
         el("div", { className: "action-row" },
           el("a", { className: "btn btn-primary btn-lg", href: ROOT_PREFIX + "/buy" }, "Start a new request")),
       ]));
@@ -1170,6 +1170,14 @@
     renderFooter(w, ev);
   }
 
+  let runKicked = false;
+  // The server runs the agent inside this one call (no background tasks when hosted). Fire once, never await.
+  function kickRun() {
+    if (runKicked) return;
+    runKicked = true;
+    fetch(REQ_BASE + "/run", { method: "POST", keepalive: true }).catch(function () {});
+  }
+
   async function poll() {
     clearTimeout(pollTimer);
     pollTimer = null;
@@ -1199,6 +1207,7 @@
       renderAll(w, ev);
 
       const status = w.status || (ev.request && ev.request.status) || "";
+      if (status === "contract_ready") kickRun();
       const checkoutDone = (w.checkout && w.checkout.status === "completed")
         || (ev.checkout && ev.checkout.status === "completed");
 

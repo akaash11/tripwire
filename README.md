@@ -29,7 +29,7 @@ blocked (its photo looked plain), and the Decisions API alone scored an obvious 
 which is why the canary and Neon layers exist. Full write-up: [`evals/out/results.md`](evals/out/results.md).
 
 ## Try it
-- **Short link:** [tripwire-labs.vercel.app](https://tripwire-labs.vercel.app) opens the live web page; [`/install`](https://tripwire-labs.vercel.app/install) has the Shortcut QR. (Redirects to the demo server; it's live while our laptop is running.)
+- **Short link:** [tripwire-labs.vercel.app](https://tripwire-labs.vercel.app) opens the live web page; [`/install`](https://tripwire-labs.vercel.app/install) has the Shortcut QR. Hosted on Vercel (free plan) with Upstash Redis, so it works with our laptops off. There is a daily request cap, so if it says "resting for today", try tomorrow.
 - **iPhone Shortcut:** scan [`docs/qr-install-shortcut.png`](docs/qr-install-shortcut.png) (or open `/install` on the
   running server) → Add Shortcut → run **Tripwire Buy** ("Hey Siri, Tripwire Buy").
 - **No install:** [`docs/qr-web-buy.png`](docs/qr-web-buy.png) opens the web version (photo, voice or text).

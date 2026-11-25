@@ -1,0 +1,14 @@
+.env
+.env.*
+keys/
+data/
+logs/
+uploads/
+.venv/
+evals/out/
+tests/
+docs/
+short-link/
+phone/build/
+__pycache__/
+*.pyc

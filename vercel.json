@@ -1,0 +1,6 @@
+{
+  "framework": "fastapi",
+  "functions": {
+    "app.py": { "maxDuration": 300 }
+  }
+}

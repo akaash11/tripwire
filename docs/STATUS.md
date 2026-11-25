@@ -3,6 +3,32 @@
 Read first: [`EVENT_REQUIREMENTS.md`](EVENT_REQUIREMENTS.md) (rules), [`ARCHITECTURE.md`](ARCHITECTURE.md), [`TEAM_PLAN.md`](TEAM_PLAN.md).
 Update this file when you finish something. Real results only; mark anything not run as NOT RUN.
 
+## Hosted (v2.0), 2026-11-25
+Vercel (Hobby) + Upstash Redis (free), `https://tripwire-labs.vercel.app`. Real outputs from the **preview** deploy
+(`tripwire-labs-h4801kuvj`, branch `feat/flashlite-model-calls`); production is NOT deployed yet.
+
+| Check | Result |
+|---|---|
+| `pytest -q tests` | 73 passed (44 old, 16 hosted with a fake Redis, 12 model-call, 1 more) |
+| Import on a read-only tree (no `uploads/ data/ logs/ .env`, `VERCEL=1`) | `/health` 200, `/pubkey` 200, `/install` 200, `/buy` 200, `/` 302, `/shortcuts/buy` 200, `/admin` 403; no dirs created |
+| Preview `/health /install /buy /shortcuts/buy /tripwire/install` | all 200 |
+| `/shortcuts/buy` vs local signed file | `cmp`: identical (also identical to `phone/dist/Tripwire Buy.shortcut`) |
+| `/admin /api/state /api/admin/state /api/admin/live /tripwire/admin` | all 403 |
+| "one can of original Red Bull" | contract 17 s, run 65 s, `ask_human`, pending cart, no checkout link in `/w` or `/events` |
+| Approve that cart | `ok`, link returned only on Approve (https, 216 chars, not printed); status `approve`; second Approve refused |
+| "apple strawberry mini fruit bars, budget 5 dollars" | run 87 s, `over_budget`, offer: $0.80 item, $9.38 delivered, budget $5.00 |
+| Raise budget, then Approve (same request, session loaded from Redis) | raise ok, new cap 938, `ask_human` pending; Approve ok, link returned |
+| 11 empty `POST /request` fired in parallel | 2 x 400, 9 x 429 (limit engaged; the minute already held earlier test hits) |
+| Replay against **real** Redis | NOT RUN: `vercel env pull` returns masked values, so no local script can reach Upstash. Covered by the fake-Redis test (atomic set-if-absent, replay refused) and by the Approve above, which consumed its nonce in real Redis without error |
+| Daily cap `DAILY_REQUEST_CAP` | covered by the fake-Redis test (over cap: HTTP 200, `speak`, no token); NOT RUN against the preview |
+| iPhone run of Shortcut 2.0, Tailscale off | NOT RUN (waiting for Akaash). The Resize/Convert Image actions were added from parameter names found in macOS's Shortcuts data and are untested on a phone |
+
+Found while testing:
+- Gemini 4 Neon did not answer on the owner's key (no reply in 15 s, 40 s); the PR above switches contract and checker to Flash-Lite.
+- A stalled Gemini call once ran into Vercel's 300 s kill (nothing saved). Now every call is bounded, the run deadline is 190 s, and a dead run shows "start again" (page marks it expired after ~120 s without an event).
+- `vercel.json` needs `"framework": "fastapi"` (the project was a static preset) and the newer CLI (54.14 rejected the config).
+- Python 3.14 is pinned in `.python-version`.
+
 ## Working now (verified end to end)
 | Piece | File | Verified |
 |---|---|---|
@@ -11,7 +37,7 @@ Update this file when you finish something. Real results only; mark anything not
 | Delivery + real price check | `agent/tools.py` `quote()`, `agent/shop_mcp.py` | Before asking the human, Tripwire creates the merchant's real checkout (no order) with a coarse destination (`SHIP_TO_*` in `.env`, default New York 10001, never a street or name). Shop then returns real shipping + tax, and `delivery_no_delivery_available_for_merchandise_line` for stores that can't deliver. Rejected: that code, no shipping quote at all (local-only stores), or delivered total over budget. The agent gets `try_another_seller` + other sellers and retries (max 4 quotes). The approved checkout is the same one (Shop: never recreate). Verified: Celsius request skipped Grill House, BevMo! (can't deliver) and picked Stetson University Bookstore, $13.59 delivered; cable → UGREEN US $18.48 delivered (was showing $12.99). Found: a $10 JuicEBitz cable is $57.45 delivered (shipping $41 + duty) |
 | Versions | `phone/make_shortcuts.py` `VERSION`, `server/web.py` `VERSION` | Shortcut v1.3: first action is a comment `Tripwire Buy v1.3 (<url>)`; Buy sends `client=Tripwire Buy 1.3`, logged per request and shown at the bottom of the page. Bump both on every rebuild |
 | Phone web page (no install) | `server/web.py`, `dashboard/buy.{html,js}` | `GET /buy` uses the shared Tripwire look (`styles.css`, light/dark, yellow/black tape, photo + hold-to-talk + budget + text) and redirects to `/r/{token}` after `POST /request`. `GET /t/{token}` 302-redirects (`../r/{token}`, preserves `/tripwire` prefix) so the iPhone Buy shortcut lands directly on `/r/{token}`. Verified at 375×812 phone viewport |
-| Contract | `agent/contract.py` | Neon (`thinking_level: low`) builds a signed contract from voice + photo in ~11s; Flash-Lite fallback |
+| Contract | `agent/contract.py` | Hackathon key: Neon (`thinking_level: low`) in ~11s, Flash-Lite fallback. Owner's key (hosted plan, 2026-11-25): Flash-Lite for contract and checker, every Gemini call through `common/modelcall.py` (one at a time, 45 s HTTP timeout, up to 3 retries on timeout, 429 or 5xx); see `docs/MODEL_PLAN.md` |
 | Signing | `common/signing.py` | Ed25519; tampering any field fails `verify()`; public key at `GET /pubkey` |
 | Shop MCP | `agent/shop_mcp.py` | Live `search_catalog`; real `create_checkout` (no order placed) returns totals, `messages`, `links` incl. refund policy, `continue_url` on shop.app |
 | Agent | `agent/run.py`, `agent/tools.py` | Antigravity managed agent on `gemini-3.5-flash-lite`, ONLY 3 custom functions. Typed "100W USB-C cable under $20, returnable" → search → INIU 100W $14.99 → `request_checkout` → guard → ~23s |
