@@ -58,7 +58,7 @@ if store.nonce_backend is not None:
 if HOSTED:
     common.usage_hook = store.add_tokens  # no usage file on a read-only disk; count tokens in Redis
 
-RUN_DEADLINE_S = 250  # the agent run must finish inside one function call (Vercel Hobby allows up to 300 s)
+RUN_DEADLINE_S = 220  # the agent run must finish inside one function call (Vercel Hobby allows up to 300 s)
 
 
 def event(kind: str, **data) -> None:

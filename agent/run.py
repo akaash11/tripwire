@@ -56,7 +56,11 @@ def run(contract: dict, session: ShopSession | None = None, model: str | None = 
     model = model or os.environ.get("AGENT_MODEL", "gemini-3.5-flash-lite")
     s = session or ShopSession(contract, on_event=on_event)
     emit = s.on_event
-    client = genai.Client(http_options={"api_version": "v1beta"})
+    http = {"api_version": "v1beta"}
+    if deadline is not None:
+        # Hosted: one stalled model call must not outlive the function (Vercel kills it at 300 s with nothing saved).
+        http["timeout"] = 60_000  # ms; with the 220 s deadline the worst case is ~280 s
+    client = genai.Client(http_options=http)
     cfg = {"type": "antigravity", "model": model}
 
     def check_deadline() -> None:
