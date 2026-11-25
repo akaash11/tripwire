@@ -59,7 +59,7 @@ def run(contract: dict, session: ShopSession | None = None, model: str | None = 
     http = {"api_version": "v1beta"}
     if deadline is not None:
         # Hosted: one stalled model call must not outlive the function (Vercel kills it at 300 s with nothing saved).
-        http["timeout"] = 60_000  # ms; with the 220 s deadline the worst case is ~280 s
+        http["timeout"] = 90_000  # ms; with the 190 s deadline the worst case is ~280 s
     client = genai.Client(http_options=http)
     cfg = {"type": "antigravity", "model": model}
 
